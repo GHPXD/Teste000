@@ -1,24 +1,26 @@
 import React, { createContext, useContext, useReducer, ReactNode, useCallback } from 'react';
-import { Deck, GameState, Room } from '../types';
+import { Deck, GameContextState, Room } from '../types'; // Importe GameContextState em vez de GameState
 
 // Ações do contexto
-type GameAction = 
-  | { type: 'SET_SELECTED_DECK'; payload: Deck }
+type GameAction =
+  | { type: 'SET_SELECTED_DECK'; payload: Deck | null } // Permite nulo para reset
   | { type: 'SET_PLAYER_NICKNAME'; payload: string }
   | { type: 'SET_CURRENT_ROOM'; payload: Room | null }
   | { type: 'SET_IN_ROOM'; payload: boolean }
   | { type: 'RESET_GAME' };
 
-// Estado inicial
-const initialState: GameState = {
+// Estado inicial - Use a interface correta aqui
+const initialState: GameContextState = {
   selectedDeck: null,
   playerNickname: '',
   currentRoom: null,
   isInRoom: false,
+  gameCards: [], // Adicione os campos que faltavam
+  playerHand: [], // Adicione os campos que faltavam
 };
 
-// Reducer para gerenciar estado
-const gameReducer = (state: GameState, action: GameAction): GameState => {
+// Reducer para gerenciar estado - Use a interface correta aqui
+const gameReducer = (state: GameContextState, action: GameAction): GameContextState => {
   switch (action.type) {
     case 'SET_SELECTED_DECK':
       return {
@@ -42,16 +44,20 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         isInRoom: action.payload,
       };
     case 'RESET_GAME':
-      return initialState;
+      // Garante que o estado inicial completo seja retornado
+      return {
+        ...initialState,
+        playerNickname: state.playerNickname, // Mantém o nickname ao resetar
+      };
     default:
       return state;
   }
 };
 
-// Interface do contexto
+// Interface do contexto - Use a interface correta aqui
 interface GameContextType {
-  state: GameState;
-  setSelectedDeck: (deck: Deck) => void;
+  state: GameContextState;
+  setSelectedDeck: (deck: Deck | null) => void;
   setPlayerNickname: (nickname: string) => void;
   setCurrentRoom: (room: Room | null) => void;
   setInRoom: (inRoom: boolean) => void;
@@ -69,8 +75,7 @@ interface GameProviderProps {
 export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
-  // ✅ Usar useCallback para evitar recriação das funções
-  const setSelectedDeck = useCallback((deck: Deck) => {
+  const setSelectedDeck = useCallback((deck: Deck | null) => {
     dispatch({ type: 'SET_SELECTED_DECK', payload: deck });
   }, []);
 
@@ -90,7 +95,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     dispatch({ type: 'RESET_GAME' });
   }, []);
 
-  // ✅ Memoizar o value para evitar recriações
   const value = React.useMemo(() => ({
     state,
     setSelectedDeck,

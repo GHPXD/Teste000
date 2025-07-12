@@ -1,4 +1,4 @@
-import { Card, Player, RoundResult } from '../types';
+import { Card } from '../types';
 
 /**
  * Embaralha um array usando algoritmo Fisher-Yates

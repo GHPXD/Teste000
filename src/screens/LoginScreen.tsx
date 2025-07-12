@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,11 +28,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Verifica se já existe um nickname salvo ao carregar a tela
-  useEffect(() => {
-    checkExistingNickname();
-  }, []);
-
-  const checkExistingNickname = async () => {
+  const checkExistingNickname = useCallback(async () => {
     try {
       const savedNickname = await getUserNickname();
       if (savedNickname) {
@@ -45,7 +41,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setIsCheckingStorage(false);
     }
-  };
+  }, [navigation]);
+
+  useEffect(() => {
+    checkExistingNickname();
+  }, [checkExistingNickname]);
 
   const handleNicknameChange = (text: string) => {
     setNickname(text);

@@ -35,7 +35,14 @@ const RodadaInfo: React.FC<RodadaInfoProps> = ({
   };
 
   const isCurrentPlayer = gameState.currentPlayer === playerNickname;
-  const playedCount = Object.keys(gameState.currentRoundCards).length;
+
+  // CORREÇÃO 1: Adicionar verificação para evitar erro em 'currentRoundCards'
+  const playedCount = gameState.currentRoundCards
+    ? Object.keys(gameState.currentRoundCards).length
+    : 0;
+
+  // CORREÇÃO 2: Evitar divisão por zero caso playerCount não esteja disponível
+  const progress = playerCount > 0 ? (playedCount / playerCount) * 100 : 0;
 
   return (
     <View style={styles.container}>
@@ -73,7 +80,7 @@ const RodadaInfo: React.FC<RodadaInfoProps> = ({
             <View 
               style={[
                 styles.progressFill,
-                { width: `${(playedCount / playerCount) * 100}%` }
+                { width: `${progress}%` } // Usando a variável segura 'progress'
               ]} 
             />
           </View>
@@ -90,7 +97,7 @@ const RodadaInfo: React.FC<RodadaInfoProps> = ({
         </View>
       )}
 
-      {/* Vencedor da rodada */}
+      {/* Vencedor da rodada (já era seguro, mas mantemos a consistência) */}
       {gameState.roundWinner && (
         <View style={styles.winnerContainer}>
           <Text style={styles.winnerLabel}>🏆 Vencedor da rodada:</Text>

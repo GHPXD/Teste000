@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,10 @@ import { useGame } from '../contexts/GameContext';
 import BaralhoCard from '../components/common/BaralhoCard';
 import { getUserNickname } from '../services/storageService';
 
-type DeckSelectionNavigationProp = StackNavigationProp<RootStackParamList, 'DeckSelection'>;
+type DeckSelectionNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'DeckSelection'
+>;
 
 interface Props {
   navigation: DeckSelectionNavigationProp;
@@ -25,7 +28,8 @@ const AVAILABLE_DECKS: Deck[] = [
   {
     id: 'paises',
     name: 'Países',
-    description: 'Explore o mundo com dados de países como população, área e PIB',
+    description:
+      'Explore o mundo com dados de países como população, área e PIB',
     imageSource: require('../assets/images/paises-deck.png'),
     totalCards: 32,
     categories: ['População', 'Área', 'PIB', 'IDH'],
@@ -33,7 +37,8 @@ const AVAILABLE_DECKS: Deck[] = [
   {
     id: 'capitais',
     name: 'Capitais',
-    description: 'Descubra capitais mundiais com população, altitude e fundação',
+    description:
+      'Descubra capitais mundiais com população, altitude e fundação',
     imageSource: require('../assets/images/capitais-deck.png'),
     totalCards: 28,
     categories: ['População', 'Altitude', 'Fundação', 'Área Urbana'],
@@ -46,11 +51,7 @@ const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Carrega nickname do usuário ao iniciar
-  useEffect(() => {
-    loadUserNickname();
-  }, []);
-
-  const loadUserNickname = async () => {
+  const loadUserNickname = useCallback(async () => {
     try {
       const nickname = await getUserNickname();
       if (nickname) {
@@ -59,7 +60,11 @@ const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
     } catch (error) {
       console.error('Erro ao carregar nickname:', error);
     }
-  };
+  }, [setPlayerNickname]);
+
+  useEffect(() => {
+    loadUserNickname();
+  }, [loadUserNickname]);
 
   const handleDeckSelect = (deck: Deck) => {
     setSelectedDeckId(deck.id);
@@ -73,11 +78,11 @@ const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     setIsLoading(true);
-    
+
     try {
       // Simula um pequeno delay para feedback visual
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // Navega para a tela de lobby
       navigation.navigate('Lobby');
     } catch (error) {
@@ -98,13 +103,12 @@ const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       {/* Lista de baralhos */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+        showsVerticalScrollIndicator={false}>
         <View style={styles.decksContainer}>
-          {AVAILABLE_DECKS.map((deck) => (
+          {AVAILABLE_DECKS.map(deck => (
             <BaralhoCard
               key={deck.id}
               deck={deck}
@@ -132,11 +136,12 @@ const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.continueButton,
-            state.selectedDeck ? styles.continueButtonEnabled : styles.continueButtonDisabled
+            state.selectedDeck
+              ? styles.continueButtonEnabled
+              : styles.continueButtonDisabled,
           ]}
           onPress={handleContinue}
-          disabled={!state.selectedDeck || isLoading}
-        >
+          disabled={!state.selectedDeck || isLoading}>
           <Text style={styles.continueButtonText}>
             {isLoading ? 'Carregando...' : 'Continuar'}
           </Text>

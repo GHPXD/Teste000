@@ -1,4 +1,4 @@
-import { Card, Deck } from '../types';
+import { Card } from '../types';
 
 // Baralho de Países
 export const paisesCards: Card[] = [

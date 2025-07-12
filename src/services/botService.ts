@@ -152,8 +152,8 @@ const handleBotCardSelection = async (
   difficulty: 'easy' | 'medium' | 'hard'
 ): Promise<void> => {
   try {
-    // Verificar se o bot já jogou nesta rodada
-    if (gameState.currentRoundCards[botName]) {
+    // CORREÇÃO: Verificar se currentRoundCards existe antes de usá-lo
+    if (gameState.currentRoundCards && gameState.currentRoundCards[botName]) {
       return;
     }
 
@@ -198,7 +198,7 @@ const handleBotAttributeSelection = async (
     }
 
     // Obter carta jogada pelo bot
-    const botCardId = gameState.currentRoundCards[botName];
+    const botCardId = gameState.currentRoundCards?.[botName]; // Usar optional chaining para segurança
     if (!botCardId) {
       return;
     }

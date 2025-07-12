@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -41,65 +41,10 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
-  
-  // Ref para evitar múltiplas execuções
+
   const currentRoomIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    loadPublicRooms();
-  }, [state.selectedDeck]);
-
-  // useEffect corrigido para escutar mudanças na sala
-  useEffect(() => {
-    const roomId = state.currentRoom?.id;
-    
-    // Se não há sala ou o ID não mudou, não faz nada
-    if (!roomId || currentRoomIdRef.current === roomId) {
-      return;
-    }
-    
-    // Atualiza a referência
-    currentRoomIdRef.current = roomId;
-    
-    console.log('🎯 Iniciando escuta da sala:', roomId);
-    
-    const unsubscribe = listenToRoom(roomId, (updatedRoom) => {
-      console.log('📡 Sala atualizada:', updatedRoom?.code || 'null');
-      
-      if (!updatedRoom) {
-        // Sala foi deletada
-        console.log('🗑️ Sala foi deletada');
-        currentRoomIdRef.current = null;
-        setCurrentRoom(null);
-        Alert.alert('Aviso', 'A sala foi encerrada.');
-        return;
-      }
-      
-      // Atualiza a sala no contexto
-      setCurrentRoom(updatedRoom);
-      
-      // Se o jogo iniciou, navega para a tela de jogo
-      if (updatedRoom.status === 'playing') {
-        console.log('🎮 Jogo iniciado, navegando...');
-        navigation.navigate('Game', { roomId: updatedRoom.id });
-      }
-    });
-
-    // Cleanup function
-    return () => {
-      console.log('🧹 Limpando escuta da sala:', roomId);
-      unsubscribe();
-    };
-  }, [state.currentRoom?.id, setCurrentRoom, navigation]);
-
-  // Cleanup quando sair da sala
-  useEffect(() => {
-    if (!state.currentRoom) {
-      currentRoomIdRef.current = null;
-    }
-  }, [state.currentRoom]);
-
-  const loadPublicRooms = async () => {
+  const loadPublicRooms = useCallback(async () => {
     if (!state.selectedDeck) return;
 
     try {
@@ -108,7 +53,53 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     } catch (error) {
       console.error('Erro ao carregar salas:', error);
     }
-  };
+  }, [state.selectedDeck]);
+
+  useEffect(() => {
+    loadPublicRooms();
+  }, [loadPublicRooms]);
+
+  useEffect(() => {
+    const roomId = state.currentRoom?.id;
+    
+    if (!roomId || currentRoomIdRef.current === roomId) {
+      return;
+    }
+    
+    currentRoomIdRef.current = roomId;
+    
+    console.log('🎯 Iniciando escuta da sala:', roomId);
+    
+    const unsubscribe = listenToRoom(roomId, (updatedRoom) => {
+      console.log('📡 Sala atualizada:', updatedRoom?.code || 'null');
+      
+      if (!updatedRoom) {
+        console.log('🗑️ Sala foi deletada');
+        currentRoomIdRef.current = null;
+        setCurrentRoom(null);
+        Alert.alert('Aviso', 'A sala foi encerrada.');
+        return;
+      }
+      
+      setCurrentRoom(updatedRoom);
+      
+      if (updatedRoom.status === 'playing') {
+        console.log('🎮 Jogo iniciado, navegando...');
+        navigation.navigate('Game', { roomId: updatedRoom.id });
+      }
+    });
+
+    return () => {
+      console.log('🧹 Limpando escuta da sala:', roomId);
+      unsubscribe();
+    };
+  }, [state.currentRoom?.id, setCurrentRoom, navigation]);
+
+  useEffect(() => {
+    if (!state.currentRoom) {
+      currentRoomIdRef.current = null;
+    }
+  }, [state.currentRoom]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -150,12 +141,11 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
       let targetRoom: Room;
       
       if (room) {
-        // Entrando via lista de salas públicas
         targetRoom = await joinRoom(room.code, state.playerNickname);
       } else {
-        // Entrando via código
         if (!validateRoomCode(roomCode)) {
           Alert.alert('Erro', 'Código inválido. Use 6 caracteres (letras e números).');
+          setIsLoading(false); // Liberar loading
           return;
         }
         
@@ -195,7 +185,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
-  // Função para alternar status de "pronto"
   const toggleReadyStatus = async () => {
     if (!state.currentRoom) return;
 
@@ -213,11 +202,9 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  // Função para iniciar o jogo
   const handleStartGame = async () => {
     if (!state.currentRoom) return;
 
-    // Verificar se há pelo menos 2 jogadores
     const playerCount = Object.keys(state.currentRoom.players).length;
     if (playerCount < 2) {
       Alert.alert(
@@ -228,7 +215,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    // Verificar se todos os jogadores estão prontos (opcional)
     const allReady = Object.values(state.currentRoom.players).every(player => player.isReady);
     if (!allReady) {
       Alert.alert(
@@ -250,15 +236,12 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
 
     setIsLoading(true);
     try {
-      // Atualizar status da sala para "playing"
       const updates = {
         [`rooms/${state.currentRoom.id}/status`]: 'playing',
         [`rooms/${state.currentRoom.id}/lastActivity`]: new Date().toISOString(),
       };
 
       await update(ref(database), updates);
-
-      // Navegar para a tela do jogo
       navigation.navigate('Game', { roomId: state.currentRoom.id });
     } catch (error) {
       console.error('Erro ao iniciar jogo:', error);
@@ -272,7 +255,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  // FUNÇÕES DOS BOTS
   const handleAddBot = async (difficulty: 'easy' | 'medium' | 'hard' = 'medium') => {
     if (!state.currentRoom) return;
 
@@ -302,14 +284,12 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    // Se há apenas um bot, remove diretamente
     if (bots.length === 1) {
       const botName = bots[0].nickname;
       confirmRemoveBot(botName);
       return;
     }
 
-    // Se há múltiplos bots, mostra opções
     const botOptions = bots.map(bot => ({
       text: bot.nickname,
       onPress: () => confirmRemoveBot(bot.nickname),
@@ -354,7 +334,7 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  // Se estiver em uma sala, mostra interface da sala
+  // Renderização condicional do Lobby ou da Sala
   if (state.currentRoom && state.currentRoom.players) {
     const players = state.currentRoom.players || {};
     const playerCount = Object.keys(players).length;
@@ -430,7 +410,7 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           )}
 
-          {/* Lista de jogadores - COM VERIFICAÇÕES */}
+          {/* Lista de jogadores */}
           <View style={styles.playersSection}>
             <Text style={styles.sectionTitle}>
               Jogadores ({playerCount}/{maxPlayers})
@@ -474,7 +454,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.chatButtonText}>💬 Chat</Text>
             </TouchableOpacity>
 
-            {/* Botão "Pronto" para jogadores não-host */}
             {state.currentRoom.hostNickname !== state.playerNickname && (
               <TouchableOpacity
                 style={[
@@ -492,7 +471,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             )}
             
-            {/* Botão "Iniciar Jogo" apenas para o host */}
             {state.currentRoom.hostNickname === state.playerNickname && (
               <TouchableOpacity
                 style={[
@@ -510,7 +488,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Chat Modal */}
         <ChatModal
           visible={showChatModal}
           onClose={() => setShowChatModal(false)}
@@ -521,10 +498,8 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
-  // Interface principal do lobby
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🎮 Lobby</Text>
         <Text style={styles.subtitle}>
@@ -538,7 +513,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Criar Sala */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Criar Nova Sala</Text>
           <View style={styles.createButtons}>
@@ -563,7 +537,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Entrar com Código */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Entrar com Código</Text>
           <View style={styles.joinContainer}>
@@ -593,7 +566,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Salas Públicas */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             Salas Públicas ({publicRooms.length})
@@ -742,7 +714,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Estilos para quando está em uma sala
   roomContainer: {
     flex: 1,
     padding: 24,
@@ -775,7 +746,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '600',
   },
-  // Estilos para controles de bot
   botControlsSection: {
     backgroundColor: '#FFF',
     borderRadius: 12,

@@ -1,3 +1,5 @@
+import { Room } from '../types';
+
 /**
  * Gera um código único para a sala
  * @returns Código de 6 caracteres
