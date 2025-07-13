@@ -1,7 +1,8 @@
-import { Card } from '../types';
+import { Card, Deck } from '../types';
 
-// Baralho de Países
+// Baralho de Países - EXPANDIDO PARA 32 CARTAS
 export const paisesCards: Card[] = [
+  // América do Norte
   {
     id: 'brasil',
     name: 'Brasil',
@@ -12,17 +13,6 @@ export const paisesCards: Card[] = [
       'IDH': 765
     },
     description: 'O maior país da América do Sul'
-  },
-  {
-    id: 'china',
-    name: 'China',
-    attributes: {
-      'População': 1439323776,
-      'Área': 9596961,
-      'PIB': 14342903,
-      'IDH': 761
-    },
-    description: 'O país mais populoso do mundo'
   },
   {
     id: 'eua',
@@ -36,6 +26,131 @@ export const paisesCards: Card[] = [
     description: 'A maior economia mundial'
   },
   {
+    id: 'canada',
+    name: 'Canadá',
+    attributes: {
+      'População': 37742154,
+      'Área': 9984670,
+      'PIB': 1736426,
+      'IDH': 929
+    },
+    description: 'O segundo maior país do mundo'
+  },
+  {
+    id: 'mexico',
+    name: 'México',
+    attributes: {
+      'População': 128932753,
+      'Área': 1964375,
+      'PIB': 1289256,
+      'IDH': 758
+    },
+    description: 'Maior país da América Central'
+  },
+
+  // América do Sul
+  {
+    id: 'argentina',
+    name: 'Argentina',
+    attributes: {
+      'População': 45195774,
+      'Área': 2780400,
+      'PIB': 449663,
+      'IDH': 845
+    },
+    description: 'Terra do tango e do futebol'
+  },
+  {
+    id: 'colombia',
+    name: 'Colômbia',
+    attributes: {
+      'População': 50882891,
+      'Área': 1141748,
+      'PIB': 314464,
+      'IDH': 767
+    },
+    description: 'Portal da América do Sul'
+  },
+  {
+    id: 'peru',
+    name: 'Peru',
+    attributes: {
+      'População': 32971854,
+      'Área': 1285216,
+      'PIB': 202014,
+      'IDH': 777
+    },
+    description: 'Terra dos Incas'
+  },
+  {
+    id: 'chile',
+    name: 'Chile',
+    attributes: {
+      'População': 19116201,
+      'Área': 756096,
+      'PIB': 317058,
+      'IDH': 851
+    },
+    description: 'País mais longo do mundo'
+  },
+
+  // Europa
+  {
+    id: 'alemanha',
+    name: 'Alemanha',
+    attributes: {
+      'População': 83783942,
+      'Área': 357114,
+      'PIB': 4259935,
+      'IDH': 947
+    },
+    description: 'A maior economia da Europa'
+  },
+  {
+    id: 'franca',
+    name: 'França',
+    attributes: {
+      'População': 65273511,
+      'Área': 643801,
+      'PIB': 2937473,
+      'IDH': 901
+    },
+    description: 'Terra da liberdade e cultura'
+  },
+  {
+    id: 'reino_unido',
+    name: 'Reino Unido',
+    attributes: {
+      'População': 67886011,
+      'Área': 243610,
+      'PIB': 3131378,
+      'IDH': 932
+    },
+    description: 'Berço da revolução industrial'
+  },
+  {
+    id: 'italia',
+    name: 'Itália',
+    attributes: {
+      'População': 60461826,
+      'Área': 301340,
+      'PIB': 2106287,
+      'IDH': 892
+    },
+    description: 'Berço do Império Romano'
+  },
+  {
+    id: 'espanha',
+    name: 'Espanha',
+    attributes: {
+      'População': 46754778,
+      'Área': 505370,
+      'PIB': 1394116,
+      'IDH': 904
+    },
+    description: 'Terra de Cervantes e Gaudí'
+  },
+  {
     id: 'russia',
     name: 'Rússia',
     attributes: {
@@ -45,6 +160,19 @@ export const paisesCards: Card[] = [
       'IDH': 824
     },
     description: 'O maior país do mundo em área'
+  },
+
+  // Ásia
+  {
+    id: 'china',
+    name: 'China',
+    attributes: {
+      'População': 1439323776,
+      'Área': 9596961,
+      'PIB': 14342903,
+      'IDH': 761
+    },
+    description: 'O país mais populoso do mundo'
   },
   {
     id: 'india',
@@ -58,17 +186,6 @@ export const paisesCards: Card[] = [
     description: 'O segundo país mais populoso'
   },
   {
-    id: 'alemanha',
-    name: 'Alemanha',
-    attributes: {
-      'População': 83783942,
-      'Área': 357114,
-      'PIB': 4259935,
-      'IDH': 947
-    },
-    description: 'A maior economia da Europa'
-  },
-  {
     id: 'japao',
     name: 'Japão',
     attributes: {
@@ -80,19 +197,192 @@ export const paisesCards: Card[] = [
     description: 'Terra do sol nascente'
   },
   {
-    id: 'canada',
-    name: 'Canadá',
+    id: 'coreia_sul',
+    name: 'Coreia do Sul',
     attributes: {
-      'População': 37742154,
-      'Área': 9984670,
-      'PIB': 1736426,
-      'IDH': 929
+      'População': 51269185,
+      'Área': 100210,
+      'PIB': 1810966,
+      'IDH': 916
     },
-    description: 'O segundo maior país do mundo'
+    description: 'Tigre asiático tecnológico'
+  },
+  {
+    id: 'indonesia',
+    name: 'Indonésia',
+    attributes: {
+      'População': 273523615,
+      'Área': 1904569,
+      'PIB': 1289429,
+      'IDH': 718
+    },
+    description: 'Maior arquipélago do mundo'
+  },
+  {
+    id: 'tailandia',
+    name: 'Tailândia',
+    attributes: {
+      'População': 69799978,
+      'Área': 513120,
+      'PIB': 543548,
+      'IDH': 777
+    },
+    description: 'Terra dos sorrisos'
+  },
+
+  // Oriente Médio
+  {
+    id: 'arabia_saudita',
+    name: 'Arábia Saudita',
+    attributes: {
+      'População': 34813871,
+      'Área': 2149690,
+      'PIB': 833541,
+      'IDH': 854
+    },
+    description: 'Berço do Islã e maior produtor de petróleo'
+  },
+  {
+    id: 'turquia',
+    name: 'Turquia',
+    attributes: {
+      'População': 84339067,
+      'Área': 783562,
+      'PIB': 761425,
+      'IDH': 838
+    },
+    description: 'Ponte entre Europa e Ásia'
+  },
+  {
+    id: 'israel',
+    name: 'Israel',
+    attributes: {
+      'População': 9216900,
+      'Área': 20770,
+      'PIB': 481591,
+      'IDH': 919
+    },
+    description: 'Nação startup do mundo'
+  },
+
+  // África
+  {
+    id: 'nigeria',
+    name: 'Nigéria',
+    attributes: {
+      'População': 206139589,
+      'Área': 923768,
+      'PIB': 432294,
+      'IDH': 539
+    },
+    description: 'Gigante da África Ocidental'
+  },
+  {
+    id: 'africa_sul',
+    name: 'África do Sul',
+    attributes: {
+      'População': 59308690,
+      'Área': 1221037,
+      'PIB': 419015,
+      'IDH': 709
+    },
+    description: 'Nação arco-íris'
+  },
+  {
+    id: 'egito',
+    name: 'Egito',
+    attributes: {
+      'População': 102334404,
+      'Área': 1001450,
+      'PIB': 469440,
+      'IDH': 707
+    },
+    description: 'Terra dos faraós'
+  },
+  {
+    id: 'marrocos',
+    name: 'Marrocos',
+    attributes: {
+      'População': 36910560,
+      'Área': 446550,
+      'PIB': 132725,
+      'IDH': 686
+    },
+    description: 'Portal da África'
+  },
+
+  // Oceania
+  {
+    id: 'australia',
+    name: 'Austrália',
+    attributes: {
+      'População': 25499884,
+      'Área': 7692024,
+      'PIB': 1552667,
+      'IDH': 944
+    },
+    description: 'Continente-país'
+  },
+  {
+    id: 'nova_zelandia',
+    name: 'Nova Zelândia',
+    attributes: {
+      'População': 4822233,
+      'Área': 268838,
+      'PIB': 249886,
+      'IDH': 931
+    },
+    description: 'Terra dos kiwis'
+  },
+
+  // Países Nórdicos
+  {
+    id: 'noruega',
+    name: 'Noruega',
+    attributes: {
+      'População': 5421241,
+      'Área': 323802,
+      'PIB': 482443,
+      'IDH': 957
+    },
+    description: 'Terra dos fiordes'
+  },
+  {
+    id: 'suecia',
+    name: 'Suécia',
+    attributes: {
+      'População': 10099265,
+      'Área': 450295,
+      'PIB': 635664,
+      'IDH': 945
+    },
+    description: 'Reino da inovação'
+  },
+  {
+    id: 'suica',
+    name: 'Suíça',
+    attributes: {
+      'População': 8654622,
+      'Área': 41285,
+      'PIB': 824734,
+      'IDH': 955
+    },
+    description: 'Coração dos Alpes'
+  },
+  {
+    id: 'singapura',
+    name: 'Singapura',
+    attributes: {
+      'População': 5850342,
+      'Área': 719,
+      'PIB': 397720,
+      'IDH': 938
+    },
+    description: 'Cidade-estado asiática'
   }
 ];
 
-// Baralho de Capitais
+// Baralho de Capitais (mantém as 8 cartas originais)
 export const capitaisCards: Card[] = [
   {
     id: 'brasilia',

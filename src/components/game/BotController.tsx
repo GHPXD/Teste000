@@ -1,11 +1,13 @@
+// src/components/game/BotController.tsx
+
 import React, { useEffect, useRef, useCallback } from 'react';
 import { GameState, Card, Player } from '../../types';
 import { executeBotAction, getBotPlayers } from '../../services/botService';
 
 interface BotControllerProps {
   roomId: string;
-  gameState: GameState | null; // Permite que gameState seja nulo inicialmente
-  players: { [key: string]: Player } | null; // Permite que players seja nulo
+  gameState: GameState | null;
+  players: { [key: string]: Player } | null;
   allCards: Card[];
 }
 
@@ -15,31 +17,30 @@ const BotController: React.FC<BotControllerProps> = ({
   players,
   allCards,
 }) => {
-  const lastGamePhase = useRef<string>('');
-  const lastCurrentPlayer = useRef<string>('');
-  const lastRound = useRef<number>(0);
   const processedActions = useRef<Set<string>>(new Set());
 
   const handleBotActions = useCallback(async () => {
-    // As verificações foram movidas para dentro da função que depende delas
-    if (!gameState || !players || !allCards.length || gameState.gamePhase === 'spinning') {
-      return;
-    }
-
-    const bots = getBotPlayers(players);
-    if (bots.length === 0) {
-      return;
-    }
-
-    const currentPlayer = players[gameState.currentPlayer];
-    if (!currentPlayer || !currentPlayer.isBot) {
+    if (!gameState || !players || !allCards.length || !gameState.currentPlayer) {
       return;
     }
     
-    const actionKey = `${gameState.currentPlayer}-${gameState.gamePhase}-${gameState.currentRound}`;
-    if (processedActions.current.has(actionKey)) {
+    // CORREÇÃO: Garante que só bots ajam e que a fase seja a correta
+    const currentPlayerInfo = players[gameState.currentPlayer];
+    if (!currentPlayerInfo || !currentPlayerInfo.isBot) {
       return;
     }
+    
+    if (gameState.gamePhase !== 'selecting') {
+        return;
+    }
+    
+    // Cria uma chave única para a ação (jogador + rodada) para evitar repetições
+    const actionKey = `${gameState.currentPlayer}-${gameState.currentRound}`;
+    if (processedActions.current.has(actionKey)) {
+        return;
+    }
+
+    // Marca a ação como processada para não ser executada novamente
     processedActions.current.add(actionKey);
 
     console.log(`🤖 Bot ${gameState.currentPlayer} deve agir na fase ${gameState.gamePhase}`);
@@ -48,31 +49,21 @@ const BotController: React.FC<BotControllerProps> = ({
       await executeBotAction(roomId, gameState.currentPlayer, gameState, allCards);
     } catch (error) {
       console.error('Erro na execução da ação do bot:', error);
+      // Permite que o bot tente novamente em caso de erro
       processedActions.current.delete(actionKey);
     }
-  }, [gameState, players, allCards, roomId]);
-
+  }, [gameState, players, allCards, roomId, processedActions]);
+  
+  // CORREÇÃO: useEffect simplificado para monitorar o estado do jogo
   useEffect(() => {
-    if (!gameState) return;
-
-    const gamePhaseChanged = lastGamePhase.current !== gameState.gamePhase;
-    const currentPlayerChanged = lastCurrentPlayer.current !== gameState.currentPlayer;
-    const roundChanged = lastRound.current !== gameState.currentRound;
-
-    if (gamePhaseChanged || currentPlayerChanged || roundChanged) {
-      if (gamePhaseChanged || roundChanged) {
+    // Limpa as ações processadas quando uma nova rodada começa
+    if(gameState && gameState.currentRound !== processedActions.current.size) {
         processedActions.current.clear();
-      }
-
-      lastGamePhase.current = gameState.gamePhase;
-      lastCurrentPlayer.current = gameState.currentPlayer;
-      lastRound.current = gameState.currentRound;
-
-      handleBotActions();
     }
+    handleBotActions();
   }, [gameState, handleBotActions]);
 
-  return null;
+  return null; // Este componente não renderiza nada
 };
 
 export default BotController;

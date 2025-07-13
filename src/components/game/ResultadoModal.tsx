@@ -1,3 +1,5 @@
+// src/components/game/ResultadoModal.tsx
+
 import React from 'react';
 import {
   View,
@@ -17,9 +19,10 @@ interface ResultadoModalProps {
   allCards: Card[];
   playerNickname: string;
   onClose: () => void;
-  onNextRound?: () => void;
+  onNextRound: () => void;
   isGameFinished?: boolean;
   gameWinner?: string;
+  isHost: boolean;
 }
 
 const ResultadoModal: React.FC<ResultadoModalProps> = ({
@@ -31,9 +34,9 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
   onNextRound,
   isGameFinished = false,
   gameWinner,
+  isHost,
 }) => {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const scaleValue = new Animated.Value(0);
+  const scaleValue = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     if (visible) {
@@ -42,7 +45,7 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [scaleValue, visible]);
+  }, [visible, scaleValue]);
 
   if (!roundResult) return null;
 
@@ -70,7 +73,6 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
             { transform: [{ scale: scaleValue }] }
           ]}
         >
-          {/* Header */}
           <View style={styles.header}>
             {isGameFinished ? (
               <>
@@ -92,7 +94,6 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
             )}
           </View>
 
-          {/* Atributo usado */}
           <View style={styles.attributeSection}>
             <Text style={styles.attributeLabel}>Atributo comparado:</Text>
             <Text style={styles.attributeValue}>
@@ -100,7 +101,6 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
             </Text>
           </View>
 
-          {/* Resultados */}
           <ScrollView style={styles.resultsContainer}>
             <Text style={styles.resultsTitle}>Resultados:</Text>
             {sortedResults.map(([player, result], index) => (
@@ -143,31 +143,28 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
             ))}
           </ScrollView>
 
-          {/* Botões */}
           <View style={styles.buttonContainer}>
-            {!isGameFinished && onNextRound && (
+            {isGameFinished ? (
               <TouchableOpacity
-                style={styles.nextButton}
-                onPress={onNextRound}
+                style={styles.closeButtonPrimary}
+                onPress={onClose}
               >
-                <Text style={styles.nextButtonText}>Próxima Rodada</Text>
+                <Text style={styles.closeButtonTextPrimary}>Finalizar</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.nextButton,
+                  !isHost && styles.disabledButton,
+                ]}
+                onPress={onNextRound}
+                disabled={!isHost}
+              >
+                <Text style={styles.nextButtonText}>
+                  {isHost ? 'Próxima Rodada' : 'Aguardando Host...'}
+                </Text>
               </TouchableOpacity>
             )}
-            
-            <TouchableOpacity
-              style={[
-                styles.closeButton,
-                isGameFinished && styles.closeButtonPrimary,
-              ]}
-              onPress={onClose}
-            >
-              <Text style={[
-                styles.closeButtonText,
-                isGameFinished && styles.closeButtonTextPrimary,
-              ]}>
-                {isGameFinished ? 'Finalizar' : 'Fechar'}
-              </Text>
-            </TouchableOpacity>
           </View>
         </Animated.View>
       </View>
@@ -291,6 +288,7 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     gap: 12,
+    justifyContent: 'center',
   },
   nextButton: {
     flex: 1,
@@ -304,26 +302,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  closeButton: {
+  disabledButton: {
+    backgroundColor: '#A5A5A5',
+  },
+  closeButtonPrimary: {
     flex: 1,
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#666',
+    backgroundColor: '#2196f3',
+    borderColor: '#2196f3',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
-  closeButtonPrimary: {
-    backgroundColor: '#2196f3',
-    borderColor: '#2196f3',
-  },
-  closeButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   closeButtonTextPrimary: {
     color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
