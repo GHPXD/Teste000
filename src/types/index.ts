@@ -1,3 +1,5 @@
+// src/types/index.ts
+
 // Tipos principais da aplicação (mantendo os existentes)
 export interface User {
   nickname: string;
@@ -33,14 +35,15 @@ export interface Room {
   gameState?: GameState;
 }
 
-// MODIFICADO: Player com suporte a bots
+// MODIFICADO: Player com suporte a bots e status
 export interface Player {
   nickname: string;
   isHost: boolean;
   joinedAt: string;
   isReady: boolean;
-  isBot?: boolean;                    // NOVO: Flag para identificar bots
-  botDifficulty?: 'easy' | 'medium' | 'hard';  // NOVO: Dificuldade do bot
+  status?: 'active' | 'eliminated'; // NOVO: Status do jogador na partida
+  isBot?: boolean;
+  botDifficulty?: 'easy' | 'medium' | 'hard';
   cardsCount?: number;
 }
 
@@ -70,7 +73,7 @@ export interface GameState {
   gameWinner: string | null;
   roundHistory: RoundResult[];
   spinResult?: string;
-  botActions?: { [playerNickname: string]: BotAction };  // NOVO: Ações dos bots
+  botActions?: { [playerNickname: string]: BotAction };
 }
 
 export interface RoundResult {
@@ -81,7 +84,6 @@ export interface RoundResult {
   timestamp: string;
 }
 
-// NOVO: Tipos para bots
 export interface BotAction {
   type: 'thinking' | 'selecting_card' | 'selecting_attribute' | 'waiting';
   timestamp: string;

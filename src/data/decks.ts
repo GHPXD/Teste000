@@ -1,3 +1,5 @@
+// src/data/decks.ts
+
 import { Card, Deck } from '../types';
 
 // Baralho de Países - EXPANDIDO PARA 32 CARTAS
@@ -6,6 +8,7 @@ export const paisesCards: Card[] = [
   {
     id: 'brasil',
     name: 'Brasil',
+    image: 'https://flagcdn.com/w320/br.png',
     attributes: {
       'População': 215000000,
       'Área': 8515767,
@@ -17,6 +20,7 @@ export const paisesCards: Card[] = [
   {
     id: 'eua',
     name: 'Estados Unidos',
+    image: 'https://flagcdn.com/w320/us.png',
     attributes: {
       'População': 331002651,
       'Área': 9833517,
@@ -28,6 +32,7 @@ export const paisesCards: Card[] = [
   {
     id: 'canada',
     name: 'Canadá',
+    image: 'https://flagcdn.com/w320/ca.png',
     attributes: {
       'População': 37742154,
       'Área': 9984670,
@@ -39,6 +44,7 @@ export const paisesCards: Card[] = [
   {
     id: 'mexico',
     name: 'México',
+    image: 'https://flagcdn.com/w320/mx.png',
     attributes: {
       'População': 128932753,
       'Área': 1964375,
@@ -52,6 +58,7 @@ export const paisesCards: Card[] = [
   {
     id: 'argentina',
     name: 'Argentina',
+    image: 'https://flagcdn.com/w320/ar.png',
     attributes: {
       'População': 45195774,
       'Área': 2780400,
@@ -63,6 +70,7 @@ export const paisesCards: Card[] = [
   {
     id: 'colombia',
     name: 'Colômbia',
+    image: 'https://flagcdn.com/w320/co.png',
     attributes: {
       'População': 50882891,
       'Área': 1141748,
@@ -74,6 +82,7 @@ export const paisesCards: Card[] = [
   {
     id: 'peru',
     name: 'Peru',
+    image: 'https://flagcdn.com/w320/pe.png',
     attributes: {
       'População': 32971854,
       'Área': 1285216,
@@ -85,6 +94,7 @@ export const paisesCards: Card[] = [
   {
     id: 'chile',
     name: 'Chile',
+    image: 'https://flagcdn.com/w320/cl.png',
     attributes: {
       'População': 19116201,
       'Área': 756096,
@@ -98,6 +108,7 @@ export const paisesCards: Card[] = [
   {
     id: 'alemanha',
     name: 'Alemanha',
+    image: 'https://flagcdn.com/w320/de.png',
     attributes: {
       'População': 83783942,
       'Área': 357114,
@@ -109,6 +120,7 @@ export const paisesCards: Card[] = [
   {
     id: 'franca',
     name: 'França',
+    image: 'https://flagcdn.com/w320/fr.png',
     attributes: {
       'População': 65273511,
       'Área': 643801,
@@ -117,6 +129,7 @@ export const paisesCards: Card[] = [
     },
     description: 'Terra da liberdade e cultura'
   },
+  // ... (restante das cartas sem URL de imagem por brevidade)
   {
     id: 'reino_unido',
     name: 'Reino Unido',
@@ -384,6 +397,7 @@ export const paisesCards: Card[] = [
 
 // Baralho de Capitais (mantém as 8 cartas originais)
 export const capitaisCards: Card[] = [
+  // ... (manter as capitais como estão, ou adicionar imagens também)
   {
     id: 'brasilia',
     name: 'Brasília',

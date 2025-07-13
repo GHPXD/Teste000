@@ -2,8 +2,8 @@
 
 import { ref, update, get, onValue, off } from 'firebase/database';
 import { database } from '../config/firebase';
-import { GameState, Card, RoundResult, Room } from '../types';
-import { distributeCards, selectRandomPlayer, compareCards, checkGameEnd } from '../utils/gameUtils';
+import { GameState, Card, RoundResult, Room, Player } from '../types';
+import { distributeCards, selectRandomPlayer, compareCards, checkGameEnd, getNextPlayer } from '../utils/gameUtils';
 
 const GAMES_PATH = 'games';
 const ROOMS_PATH = 'rooms';
@@ -22,6 +22,15 @@ export const startGame = async (
     const playerCards = distributeCards(cards, players);
     const firstPlayer = selectRandomPlayer(players);
 
+    // Garante que todos os jogadores comecem como ativos
+    const roomRef = ref(database, `${ROOMS_PATH}/${roomId}/players`);
+    const playersSnapshot = await get(roomRef);
+    const playersData = playersSnapshot.val() as { [key: string]: Player };
+
+    Object.keys(playersData).forEach(p => {
+      playersData[p].status = 'active';
+    });
+
     const gameState: GameState = {
       currentRound: 1,
       currentPlayer: firstPlayer,
@@ -37,7 +46,7 @@ export const startGame = async (
 
     const updates = {
       [`${ROOMS_PATH}/${roomId}/status`]: 'playing',
-      [`${ROOMS_PATH}/${roomId}/gameState`]: gameState,
+      [`${ROOMS_PATH}/${roomId}/players`]: playersData, // Salva o status 'active'
       [`${GAMES_PATH}/${roomId}`]: gameState,
     };
 
@@ -75,7 +84,10 @@ export const playCard = async (
     const roomSnapshot = await get(roomRef);
     if (!roomSnapshot.exists()) return;
     const room: Room = roomSnapshot.val();
-    const totalPlayers = Object.keys(room.players).length;
+    
+    // Filtra apenas jogadores ativos
+    const activePlayers = Object.values(room.players).filter(p => p.status === 'active');
+    const totalActivePlayers = activePlayers.length;
 
     const gameRef = ref(database, `${GAMES_PATH}/${roomId}`);
     const gameSnapshot = await get(gameRef);
@@ -88,8 +100,8 @@ export const playCard = async (
     await update(ref(database), updates);
 
     const updatedCards = { ...gameState.currentRoundCards, [playerNickname]: cardId };
-    if (Object.keys(updatedCards).length === totalPlayers) {
-      console.log('✅ Todos os jogadores jogaram. Avançando para fase de revelação.');
+    if (Object.keys(updatedCards).length === totalActivePlayers) {
+      console.log('✅ Todos os jogadores ativos jogaram. Avançando para fase de revelação.');
       await update(ref(database), {
         [`${GAMES_PATH}/${roomId}/gamePhase`]: 'revealing',
       });
@@ -131,6 +143,11 @@ export const processRoundResult = async (
       throw new Error('Atributo não selecionado');
     }
 
+    // Pega os dados dos jogadores da sala para verificar o status
+    const roomPlayersRef = ref(database, `${ROOMS_PATH}/${roomId}/players`);
+    const playersSnapshot = await get(roomPlayersRef);
+    const players: { [key: string]: Player } = playersSnapshot.val();
+
     const { winner, results } = compareCards(
       gameState.currentRoundCards,
       gameState.selectedAttribute,
@@ -154,17 +171,31 @@ export const processRoundResult = async (
     });
 
     updatedPlayerCards[winner] = [...(updatedPlayerCards[winner] || []), ...playedCards];
+    
+    // Verifica e atualiza o status dos jogadores que ficaram sem cartas
+    Object.keys(players).forEach(p => {
+        if (updatedPlayerCards[p] && updatedPlayerCards[p].length === 0 && players[p].status === 'active') {
+            players[p].status = 'eliminated';
+            console.log(`Player ${p} foi eliminado.`);
+        }
+    });
 
-    const gameWinner = checkGameEnd(updatedPlayerCards);
+    const gameWinner = checkGameEnd(players);
 
-    const updates = {
+    const updates: any = {
       [`${GAMES_PATH}/${roomId}/roundWinner`]: winner,
       [`${GAMES_PATH}/${roomId}/gameWinner`]: gameWinner,
       [`${GAMES_PATH}/${roomId}/playerCards`]: updatedPlayerCards,
       [`${GAMES_PATH}/${roomId}/roundHistory`]: [...(gameState.roundHistory || []), roundResult],
       [`${GAMES_PATH}/${roomId}/gamePhase`]: gameWinner ? 'finished' : 'comparing',
-      [`${GAMES_PATH}/${roomId}/currentPlayer`]: winner,
+      [`${ROOMS_PATH}/${roomId}/players`]: players, // Atualiza o status dos jogadores na sala
     };
+    
+    // O próximo jogador deve ser o vencedor da rodada, desde que ele ainda esteja ativo.
+    // Se o vencedor foi eliminado (improvável, mas possível), a lógica getNextPlayer encontrará o próximo.
+    if (!gameWinner) {
+        updates[`${GAMES_PATH}/${roomId}/currentPlayer`] = winner;
+    }
 
     await update(ref(database), updates);
   } catch (error) {
@@ -173,16 +204,24 @@ export const processRoundResult = async (
   }
 };
 
+
 /**
  * Inicia próxima rodada (chamado pelo host).
  */
 export const startNextRound = async (roomId: string): Promise<void> => {
   try {
     const gameRef = ref(database, `${GAMES_PATH}/${roomId}`);
-    const snapshot = await get(gameRef);
-    if (!snapshot.exists()) return;
+    const gameSnapshot = await get(gameRef);
+    if (!gameSnapshot.exists()) return;
+    const gameState: GameState = gameSnapshot.val();
 
-    const gameState: GameState = snapshot.val();
+    const roomRef = ref(database, `${ROOMS_PATH}/${roomId}`);
+    const roomSnapshot = await get(roomRef);
+    if (!roomSnapshot.exists()) return;
+    const room: Room = roomSnapshot.val();
+
+    // Determina o próximo jogador usando a nova lógica que pula os eliminados
+    const nextPlayer = getNextPlayer(gameState.currentPlayer, room.players);
 
     const updates = {
       [`${GAMES_PATH}/${roomId}/currentRound`]: gameState.currentRound + 1,
@@ -190,6 +229,7 @@ export const startNextRound = async (roomId: string): Promise<void> => {
       [`${GAMES_PATH}/${roomId}/currentRoundCards`]: {},
       [`${GAMES_PATH}/${roomId}/selectedAttribute`]: null,
       [`${GAMES_PATH}/${roomId}/roundWinner`]: null,
+      [`${GAMES_PATH}/${roomId}/currentPlayer`]: nextPlayer, // Define o próximo jogador ativo
     };
 
     await update(ref(database), updates);

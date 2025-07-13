@@ -1,4 +1,6 @@
-import { Card } from '../types';
+// src/utils/gameUtils.ts
+
+import { Card, Player } from '../types';
 
 /**
  * Embaralha um array usando algoritmo Fisher-Yates
@@ -26,8 +28,18 @@ export const distributeCards = (cards: Card[], players: string[]): { [playerNick
     playerCards[player] = shuffledCards.slice(startIndex, endIndex).map(card => card.id);
   });
 
+  // Garante que todas as cartas sejam distribuídas em caso de sobra
+  let remainderIndex = players.length * cardsPerPlayer;
+  let playerIndex = 0;
+  while (remainderIndex < shuffledCards.length) {
+    playerCards[players[playerIndex]].push(shuffledCards[remainderIndex].id);
+    playerIndex = (playerIndex + 1) % players.length;
+    remainderIndex++;
+  }
+
   return playerCards;
 };
+
 
 /**
  * Seleciona jogador aleatório para começar
@@ -66,26 +78,39 @@ export const compareCards = (
 };
 
 /**
- * Calcula próximo jogador na ordem
+ * Calcula próximo jogador na ordem, pulando os eliminados
  */
-export const getNextPlayer = (currentPlayer: string, players: string[]): string => {
-  const currentIndex = players.indexOf(currentPlayer);
-  const nextIndex = (currentIndex + 1) % players.length;
-  return players[nextIndex];
+export const getNextPlayer = (
+  currentPlayer: string,
+  players: { [key: string]: Player }
+): string => {
+  const playerNicknames = Object.keys(players);
+  const activePlayers = playerNicknames.filter(p => players[p].status === 'active');
+  
+  if (activePlayers.length === 0) {
+    return currentPlayer; // Retorna o jogador atual se não houver jogadores ativos
+  }
+
+  const currentIndex = activePlayers.indexOf(currentPlayer);
+  const nextIndex = (currentIndex + 1) % activePlayers.length;
+  
+  return activePlayers[nextIndex];
 };
 
+
 /**
- * Verifica se o jogo terminou (alguém ficou sem cartas)
+ * Verifica se o jogo terminou (apenas um jogador ativo)
  */
-export const checkGameEnd = (playerCards: { [playerNickname: string]: string[] }): string | null => {
-  const playersWithCards = Object.entries(playerCards).filter(([_, cards]) => cards.length > 0);
-  
-  if (playersWithCards.length === 1) {
-    return playersWithCards[0][0]; // Retorna o vencedor
-  }
-  
-  return null;
+export const checkGameEnd = (players: { [key: string]: Player }): string | null => {
+    const activePlayers = Object.values(players).filter(p => p.status === 'active');
+    
+    if (activePlayers.length === 1) {
+      return activePlayers[0].nickname; // Retorna o vencedor
+    }
+    
+    return null;
 };
+
 
 /**
  * Formata valores para exibição

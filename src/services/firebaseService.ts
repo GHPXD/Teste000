@@ -1,3 +1,5 @@
+// src/services/firebaseService.ts
+
 import { 
   ref, 
   push, 
@@ -41,6 +43,7 @@ export const createRoom = async (
       isHost: true,
       joinedAt: new Date().toISOString(),
       isReady: true,
+      status: 'active', // NOVO
     };
 
     const newRoom: Room = {
@@ -75,7 +78,6 @@ export const joinRoom = async (
   playerNickname: string
 ): Promise<Room> => {
   try {
-    // Busca sala pelo código
     const roomsRef = ref(database, ROOMS_PATH);
     const roomsQuery = query(roomsRef, orderByChild('code'), equalTo(roomCode.toUpperCase()));
     const snapshot = await get(roomsQuery);
@@ -88,7 +90,6 @@ export const joinRoom = async (
     const roomId = Object.keys(rooms)[0];
     const room: Room = rooms[roomId];
 
-    // Validações
     if (room.status !== 'waiting') {
       throw new Error('Esta sala já iniciou o jogo');
     }
@@ -101,12 +102,12 @@ export const joinRoom = async (
       throw new Error('Já existe um jogador com este nickname na sala');
     }
 
-    // Adiciona jogador à sala
     const newPlayer: Player = {
       nickname: playerNickname,
       isHost: false,
       joinedAt: new Date().toISOString(),
       isReady: false,
+      status: 'active', // NOVO
     };
 
     const updates = {
@@ -116,7 +117,6 @@ export const joinRoom = async (
 
     await update(ref(database), updates);
 
-    // Retorna sala atualizada
     const updatedRoom = { ...room, players: { ...room.players, [playerNickname]: newPlayer } };
     return updatedRoom;
   } catch (error) {
@@ -140,7 +140,6 @@ export const listRoomsByDeck = async (deckId: string): Promise<Room[]> => {
 
     const rooms = snapshot.val();
     
-    // Filtra apenas salas públicas e aguardando
     const publicRooms = Object.values(rooms as { [key: string]: Room })
       .filter(room => !room.isPrivate && room.status === 'waiting')
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -166,18 +165,15 @@ export const leaveRoom = async (roomId: string, playerNickname: string): Promise
 
     const room: Room = snapshot.val();
 
-    // Remove jogador da sala
     await remove(ref(database, `${ROOMS_PATH}/${roomId}/players/${playerNickname}`));
 
     const remainingPlayers = Object.keys(room.players).filter(p => p !== playerNickname);
 
-    // Se não há mais jogadores, remove a sala
     if (remainingPlayers.length === 0) {
       await remove(roomRef);
       return;
     }
 
-    // Se o host saiu, transfere para outro jogador
     if (room.hostNickname === playerNickname) {
       const newHostNickname = remainingPlayers[0];
       const updates = {

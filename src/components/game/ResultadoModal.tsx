@@ -1,6 +1,6 @@
 // src/components/game/ResultadoModal.tsx
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ScrollView,
   Animated,
+  Easing,
 } from 'react-native';
 import { RoundResult, Card } from '../../types';
 import { formatAttributeValue } from '../../utils/gameUtils';
@@ -36,16 +37,42 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
   gameWinner,
   isHost,
 }) => {
-  const scaleValue = React.useRef(new Animated.Value(0)).current;
+  const scaleValue = useRef(new Animated.Value(0)).current;
+  // CORREÇÃO: Sintaxe do useState e lazy initialization corrigida.
+  const [cardAnimations] = useState(() => [...Array(5)].map(() => new Animated.Value(0)));
+  const [animationStarted, setAnimationStarted] = useState(false);
 
-  React.useEffect(() => {
+  // Animação de entrada do modal
+  useEffect(() => {
     if (visible) {
+      setAnimationStarted(false);
+      scaleValue.setValue(0);
       Animated.spring(scaleValue, {
         toValue: 1,
         useNativeDriver: true,
       }).start();
     }
   }, [visible, scaleValue]);
+  
+  // Animação das cartas voando
+  useEffect(() => {
+    if (visible && roundResult && !isGameFinished && !animationStarted) {
+      setAnimationStarted(true);
+      // CORREÇÃO: Tipagem explícita para os parâmetros do map.
+      const animations = cardAnimations.map((anim: Animated.Value, index: number) => {
+        return Animated.timing(anim, {
+          toValue: 1,
+          duration: 300,
+          delay: 1000 + index * 100, 
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        });
+      });
+
+      Animated.stagger(100, animations).start();
+    }
+  }, [visible, roundResult, isGameFinished, animationStarted, cardAnimations]);
+
 
   if (!roundResult) return null;
 
@@ -58,6 +85,29 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
     .sort(([, a], [, b]) => b.value - a.value);
 
   const isWinner = roundResult.winner === playerNickname;
+  const winnerNickname = roundResult.winner;
+
+  // Estilos da animação das cartas
+  const cardAnimatedStyles = cardAnimations.map((anim: Animated.Value) => ({
+    transform: [
+      {
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -100],
+        }),
+      },
+      {
+        scale: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.5],
+        }),
+      },
+    ],
+    opacity: anim.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [1, 1, 0],
+    }),
+  }));
 
   return (
     <Modal
@@ -73,6 +123,16 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
             { transform: [{ scale: scaleValue }] }
           ]}
         >
+          {/* Animação das cartas sendo coletadas */}
+          {!isGameFinished && (
+             <View style={styles.cardAnimationContainer} pointerEvents="none">
+               {/* CORREÇÃO: Tipagem explícita para os parâmetros do map. */}
+               {cardAnimatedStyles.map((style: object, index: number) => (
+                 <Animated.View key={index} style={[styles.animatedCard, style]} />
+               ))}
+             </View>
+          )}
+
           <View style={styles.header}>
             {isGameFinished ? (
               <>
@@ -85,10 +145,10 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
             ) : (
               <>
                 <Text style={styles.title}>
-                  {isWinner ? '🎉 Você venceu!' : '😔 Você perdeu!'}
+                  {isWinner ? '🎉 Você venceu a rodada!' : '😔 Você perdeu a rodada!'}
                 </Text>
                 <Text style={styles.subtitle}>
-                  Resultado da Rodada {roundResult.roundNumber}
+                  Vencedor da rodada: {winnerNickname}
                 </Text>
               </>
             )}
@@ -103,7 +163,8 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
 
           <ScrollView style={styles.resultsContainer}>
             <Text style={styles.resultsTitle}>Resultados:</Text>
-            {sortedResults.map(([player, result], index) => (
+            {/* CORREÇÃO: Tipagem explícita para os parâmetros do map. */}
+            {sortedResults.map(([player, result]: [string, { cardId: string; value: number }], index: number) => (
               <View 
                 key={player}
                 style={[
@@ -149,7 +210,7 @@ const ResultadoModal: React.FC<ResultadoModalProps> = ({
                 style={styles.closeButtonPrimary}
                 onPress={onClose}
               >
-                <Text style={styles.closeButtonTextPrimary}>Finalizar</Text>
+                <Text style={styles.closeButtonTextPrimary}>Finalizar Jogo</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -317,6 +378,26 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  cardAnimationContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: 100,
+    height: 140,
+    marginLeft: -50,
+    marginTop: -70,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  animatedCard: {
+    position: 'absolute',
+    width: 60,
+    height: 90,
+    backgroundColor: '#1a237e',
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#FFF',
   },
 });
 

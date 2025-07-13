@@ -1,3 +1,5 @@
+// src/components/game/Carta.tsx
+
 import React, { useEffect, useRef } from 'react';
 import {
   View,
@@ -6,6 +8,7 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
+  Image,
 } from 'react-native';
 import { Card } from '../../types';
 import { formatAttributeValue } from '../../utils/gameUtils';
@@ -20,8 +23,9 @@ interface CartaProps {
 }
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.4;
-const CARD_HEIGHT = CARD_WIDTH * 1.4;
+// Ajuste para um tamanho de carta um pouco maior na tela
+const CARD_WIDTH = width * 0.45;
+const CARD_HEIGHT = CARD_WIDTH * 1.5;
 
 const Carta: React.FC<CartaProps> = ({
   card,
@@ -31,10 +35,8 @@ const Carta: React.FC<CartaProps> = ({
   selectedAttribute,
   onSelect,
 }) => {
-  // ✅ CORRETO: Criar animatedValue internamente com useRef
   const animatedValue = useRef(new Animated.Value(0)).current;
 
-  // ✅ CORRETO: useEffect com dependências específicas
   useEffect(() => {
     if (isRevealed) {
       Animated.timing(animatedValue, {
@@ -43,7 +45,6 @@ const Carta: React.FC<CartaProps> = ({
         useNativeDriver: true,
       }).start();
     } else {
-      // Reset animation when card is hidden
       animatedValue.setValue(0);
     }
   }, [isRevealed, animatedValue]);
@@ -54,7 +55,6 @@ const Carta: React.FC<CartaProps> = ({
     }
   };
 
-  // Animação de flip
   const frontAnimatedStyle = {
     transform: [
       {
@@ -90,7 +90,7 @@ const Carta: React.FC<CartaProps> = ({
     >
       {/* Verso da carta */}
       {!isRevealed && (
-        <Animated.View style={[styles.cardBack, backAnimatedStyle]}>
+        <Animated.View style={[styles.cardBase, styles.cardBack, backAnimatedStyle]}>
           <View style={styles.backPattern}>
             <Text style={styles.backText}>🎴</Text>
             <Text style={styles.backTitle}>TRUNFIA</Text>
@@ -99,54 +99,51 @@ const Carta: React.FC<CartaProps> = ({
       )}
 
       {/* Frente da carta */}
-      {isRevealed && (
-        <Animated.View style={[styles.cardFront, frontAnimatedStyle]}>
-          {/* Header da carta */}
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{card.name}</Text>
-          </View>
+      <Animated.View style={[styles.cardBase, styles.cardFront, frontAnimatedStyle]}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{card.name}</Text>
+        </View>
 
-          {/* Imagem placeholder */}
-          <View style={styles.imageContainer}>
+        <View style={styles.imageContainer}>
+          {card.image ? (
+            <Image 
+              source={{ uri: card.image }} 
+              style={styles.cardImage}
+              resizeMode="cover"
+            />
+          ) : (
             <Text style={styles.imagePlaceholder}>🌍</Text>
-          </View>
-
-          {/* Atributos */}
-          <View style={styles.attributesContainer}>
-            {Object.entries(card.attributes).map(([key, value]) => (
-              <View
-                key={key}
-                style={[
-                  styles.attributeRow,
-                  selectedAttribute === key && styles.selectedAttribute,
-                ]}
-              >
-                <Text style={[
-                  styles.attributeName,
-                  selectedAttribute === key && styles.selectedAttributeText,
-                ]}>
-                  {key}:
-                </Text>
-                <Text style={[
-                  styles.attributeValue,
-                  selectedAttribute === key && styles.selectedAttributeText,
-                ]}>
-                  {formatAttributeValue(key, value)}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Descrição */}
-          {card.description && (
-            <View style={styles.descriptionContainer}>
-              <Text style={styles.description}>{card.description}</Text>
-            </View>
           )}
-        </Animated.View>
-      )}
+        </View>
 
-      {/* Indicador de seleção */}
+        <View style={styles.attributesWrapper}>
+            <View style={styles.attributesContainer}>
+                {Object.entries(card.attributes).map(([key, value]) => (
+                <View
+                    key={key}
+                    style={[
+                    styles.attributeRow,
+                    selectedAttribute === key && styles.selectedAttribute,
+                    ]}
+                >
+                    <Text style={[
+                    styles.attributeName,
+                    selectedAttribute === key && styles.selectedAttributeText,
+                    ]}>
+                    {key}:
+                    </Text>
+                    <Text style={[
+                    styles.attributeValue,
+                    selectedAttribute === key && styles.selectedAttributeText,
+                    ]}>
+                    {formatAttributeValue(key, value)}
+                    </Text>
+                </View>
+                ))}
+            </View>
+        </View>
+      </Animated.View>
+
       {isSelected && (
         <View style={styles.selectionIndicator}>
           <Text style={styles.selectionIcon}>✓</Text>
@@ -161,40 +158,39 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     margin: 8,
-    borderRadius: 12,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
   },
   selectedContainer: {
-    elevation: 8,
-    shadowOpacity: 0.4,
     transform: [{ scale: 1.05 }],
+    shadowColor: '#007AFF',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 10,
   },
   disabledContainer: {
     opacity: 0.6,
   },
-  cardBack: {
+  cardBase: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#1a237e',
+    position: 'absolute',
     borderRadius: 12,
+    backfaceVisibility: 'hidden',
+    borderWidth: 1,
+    borderColor: '#DDD',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  cardBack: {
+    backgroundColor: '#1a237e',
     justifyContent: 'center',
     alignItems: 'center',
-    backfaceVisibility: 'hidden',
   },
   cardFront: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#FFF',
-    borderRadius: 12,
+    backgroundColor: '#f8f9fa',
     overflow: 'hidden',
-    backfaceVisibility: 'hidden',
   },
   backPattern: {
     alignItems: 'center',
@@ -211,66 +207,66 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     backgroundColor: '#3f51b5',
-    padding: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#FFF',
     textAlign: 'center',
   },
   imageContainer: {
-    height: 80,
-    backgroundColor: '#f5f5f5',
+    height: '20%', // 20% da altura da carta
+    width: '100%',  // 100% da largura da carta
+    backgroundColor: '#e9ecef',
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    fontSize: 24,
+    textAlign: 'center',
+    lineHeight: CARD_HEIGHT * 0.2, // Centraliza verticalmente
+  },
+  attributesWrapper: {
+    height: '80%', // 80% da altura da carta
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imagePlaceholder: {
-    fontSize: 32,
-  },
   attributesContainer: {
-    flex: 1,
-    padding: 8,
+    width: '90%', // 90% da largura do wrapper
+    height: '95%',
+    justifyContent: 'space-around', // Distribui os atributos
   },
   attributeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 2,
     paddingHorizontal: 8,
     borderRadius: 4,
-    marginBottom: 2,
   },
   selectedAttribute: {
     backgroundColor: '#e3f2fd',
-    borderWidth: 1,
-    borderColor: '#2196f3',
   },
   attributeName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#495057',
     flex: 1,
   },
   attributeValue: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#666',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#212529',
     textAlign: 'right',
   },
   selectedAttributeText: {
     color: '#1976d2',
-  },
-  descriptionContainer: {
-    padding: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  description: {
-    fontSize: 10,
-    color: '#666',
-    textAlign: 'center',
-    fontStyle: 'italic',
+    fontWeight: 'bold',
   },
   selectionIndicator: {
     position: 'absolute',
@@ -282,6 +278,7 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
   selectionIcon: {
     color: '#FFF',

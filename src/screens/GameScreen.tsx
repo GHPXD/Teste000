@@ -126,7 +126,7 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
 
   useEffect(() => {
     if (gameState?.gamePhase === 'revealing' && !isProcessingRound.current) {
-        const allPlayersPlayed = Object.keys(gameState.currentRoundCards).length === Object.keys(state.currentRoom?.players || {}).length;
+        const allPlayersPlayed = Object.keys(gameState.currentRoundCards).length === Object.values(state.currentRoom?.players || {}).filter(p => p.status === 'active').length;
 
         if (allPlayersPlayed && gameState.selectedAttribute) {
             isProcessingRound.current = true;
@@ -144,6 +144,31 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
         }
     }
   }, [gameState, roomId, allCards, state.currentRoom?.players]);
+
+  const handleNextRound = useCallback(async () => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    try {
+      await startNextRound(roomId);
+      setShowResultModal(false);
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível iniciar a próxima rodada.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, roomId]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showResultModal && gameState?.gamePhase === 'comparing' && state.currentRoom?.hostNickname === state.playerNickname) {
+      timer = setTimeout(() => {
+        handleNextRound();
+      }, 5000);
+    }
+    return () => clearTimeout(timer);
+  }, [showResultModal, gameState, state.currentRoom, state.playerNickname, handleNextRound]);
+
 
   const handleCardSelect = (card: Card) => {
     if (!gameState || gameState.gamePhase !== 'selecting' || (gameState.currentRoundCards && gameState.currentRoundCards[state.playerNickname])) return;
@@ -174,24 +199,9 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
       setIsLoading(false);
     }
   };
-
-  const handleNextRound = async () => {
-    if (state.playerNickname !== state.currentRoom?.hostNickname) {
-      Alert.alert("Aguarde", "Apenas o host da sala pode iniciar a próxima rodada.");
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await startNextRound(roomId);
-      setShowResultModal(false);
-    } catch (error) {
-      Alert.alert("Erro", "Não foi possível iniciar a próxima rodada.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
   
   const handleCloseModal = () => {
+    setShowResultModal(false);
     if (gameState?.gameWinner) {
       navigation.goBack();
     }
@@ -208,21 +218,21 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
     );
   }
   
-  const players = Object.keys(state.currentRoom.players);
+  const players = Object.values(state.currentRoom.players);
   const isCurrentPlayer = gameState.currentPlayer === state.playerNickname;
   const hasPlayedCard = !!(gameState.currentRoundCards && gameState.currentRoundCards[state.playerNickname]);
 
   if (gameState.gamePhase === 'spinning') {
     return (
       <SafeAreaView style={styles.container}>
-        <SpinWheel players={players} selectedPlayer={gameState.currentPlayer} isSpinning onSpinComplete={() => {}} />
+        <SpinWheel players={Object.keys(state.currentRoom.players)} selectedPlayer={gameState.currentPlayer} isSpinning onSpinComplete={() => {}} />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <RodadaInfo gameState={gameState} playerNickname={state.playerNickname} playerCount={players.length} />
+      <RodadaInfo gameState={gameState} playerNickname={state.playerNickname} playerCount={players.filter(p => p.status === 'active').length} />
 
       <BotController roomId={roomId} gameState={gameState} players={state.currentRoom.players} allCards={allCards} />
 
@@ -231,31 +241,38 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
           <View style={styles.opponentsArea}>
             <Text style={styles.sectionTitle}>Outros Jogadores</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {players.filter(p => p !== state.playerNickname).map(player => {
-                const playerData = state.currentRoom?.players?.[player];
-                if (!playerData) return null;
+              {players.filter(p => p.nickname !== state.playerNickname).map(player => {
+                const isEliminated = player.status === 'eliminated';
                 
                 return (
-                  <View key={player} style={styles.opponentCard}>
+                  <View key={player.nickname} style={[styles.opponentCard, isEliminated && styles.eliminatedOpponent]}>
                     <Text style={styles.opponentName}>
-                      {player}
-                      {playerData.isBot && ' 🤖'}
+                      {player.nickname}
+                      {player.isBot && ' 🤖'}
                     </Text>
                     <View style={styles.opponentCardBack}>
                       <Text style={styles.cardCount}>
-                        {gameState.playerCards?.[player]?.length || 0}
+                        {gameState.playerCards?.[player.nickname]?.length || 0}
                       </Text>
                       <Text style={styles.cardCountLabel}>cartas</Text>
                     </View>
-                    {gameState.currentRoundCards?.[player] && (
-                      <View style={styles.playedCardIndicator}>
-                        <Text style={styles.playedCardText}>✓ Jogou</Text>
+                    {isEliminated ? (
+                      <View style={styles.eliminatedOverlay}>
+                        <Text style={styles.eliminatedText}>ELIMINADO</Text>
                       </View>
-                    )}
-                    {playerData.isBot && gameState.currentPlayer === player && (
-                      <View style={styles.botThinkingIndicator}>
-                        <Text style={styles.botThinkingText}>💭 Pensando...</Text>
-                      </View>
+                    ) : (
+                      <>
+                        {gameState.currentRoundCards?.[player.nickname] && (
+                          <View style={styles.playedCardIndicator}>
+                            <Text style={styles.playedCardText}>✓ Jogou</Text>
+                          </View>
+                        )}
+                        {player.isBot && gameState.currentPlayer === player.nickname && (
+                          <View style={styles.botThinkingIndicator}>
+                            <Text style={styles.botThinkingText}>💭 Pensando...</Text>
+                          </View>
+                        )}
+                      </>
                     )}
                   </View>
                 );
@@ -304,7 +321,7 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
                 card={card}
                 isRevealed={selectedCardId === card.id}
                 isSelected={selectedCardId === card.id}
-                isSelectable={gameState.gamePhase === 'selecting' && !hasPlayedCard}
+                isSelectable={gameState.gamePhase === 'selecting' && !hasPlayedCard && playerHand.length > 0}
                 selectedAttribute={gameState.selectedAttribute || undefined}
                 onSelect={() => handleCardSelect(card)}
               />
@@ -351,7 +368,6 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
         onNextRound={handleNextRound}
         isGameFinished={!!gameState.gameWinner}
         gameWinner={gameState.gameWinner || undefined}
-        // CORREÇÃO APLICADA AQUI:
         isHost={state.playerNickname === state.currentRoom.hostNickname}
       />
 
@@ -375,7 +391,27 @@ const styles = StyleSheet.create({
     instruction: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 16, fontStyle: 'italic' },
     waitingText: { fontSize: 14, color: '#4CAF50', textAlign: 'center', marginBottom: 16, fontWeight: '600' },
     opponentsArea: { marginBottom: 24 },
-    opponentCard: { alignItems: 'center', marginRight: 16, padding: 12, backgroundColor: '#FFF', borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+    opponentCard: { alignItems: 'center', marginRight: 16, padding: 12, backgroundColor: '#FFF', borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, position: 'relative' },
+    eliminatedOpponent: {
+      opacity: 0.5,
+    },
+    eliminatedOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(50, 50, 50, 0.7)',
+      borderRadius: 8,
+    },
+    eliminatedText: {
+      color: '#FFF',
+      fontWeight: 'bold',
+      fontSize: 14,
+      transform: [{ rotate: '-15deg' }],
+    },
     opponentName: { fontSize: 12, fontWeight: '600', color: '#333', marginBottom: 8 },
     opponentCardBack: { width: 60, height: 80, backgroundColor: '#1a237e', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
     cardCount: { fontSize: 16, fontWeight: 'bold', color: '#FFF' },
