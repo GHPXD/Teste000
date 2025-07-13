@@ -3,7 +3,7 @@
 import { ref, update, get, onValue, off } from 'firebase/database';
 import { database } from '../config/firebase';
 import { GameState, Card, RoundResult, Room, Player } from '../types';
-import { distributeCards, selectRandomPlayer, compareCards, checkGameEnd, getNextPlayer } from '../utils/gameUtils';
+import { distributeCards, selectRandomPlayer, compareCards, checkGameEnd, getNextPlayer, shuffleArray } from '../utils/gameUtils';
 
 const GAMES_PATH = 'games';
 const ROOMS_PATH = 'rooms';
@@ -85,7 +85,6 @@ export const playCard = async (
     if (!roomSnapshot.exists()) return;
     const room: Room = roomSnapshot.val();
     
-    // Filtra apenas jogadores ativos
     const activePlayers = Object.values(room.players).filter(p => p.status === 'active');
     const totalActivePlayers = activePlayers.length;
 
@@ -100,8 +99,10 @@ export const playCard = async (
     await update(ref(database), updates);
 
     const updatedCards = { ...gameState.currentRoundCards, [playerNickname]: cardId };
+    
     if (Object.keys(updatedCards).length === totalActivePlayers) {
       console.log('✅ Todos os jogadores ativos jogaram. Avançando para fase de revelação.');
+      
       await update(ref(database), {
         [`${GAMES_PATH}/${roomId}/gamePhase`]: 'revealing',
       });
@@ -143,7 +144,6 @@ export const processRoundResult = async (
       throw new Error('Atributo não selecionado');
     }
 
-    // Pega os dados dos jogadores da sala para verificar o status
     const roomPlayersRef = ref(database, `${ROOMS_PATH}/${roomId}/players`);
     const playersSnapshot = await get(roomPlayersRef);
     const players: { [key: string]: Player } = playersSnapshot.val();
@@ -170,11 +170,15 @@ export const processRoundResult = async (
       updatedPlayerCards[player] = updatedPlayerCards[player].filter(id => id !== cardId);
     });
 
-    updatedPlayerCards[winner] = [...(updatedPlayerCards[winner] || []), ...playedCards];
+    // Embaralha o deck do vencedor ao adicionar as novas cartas.
+    const newWinnerDeck = shuffleArray([
+      ...(updatedPlayerCards[winner] || []),
+      ...playedCards
+    ]);
+    updatedPlayerCards[winner] = newWinnerDeck;
     
-    // Verifica e atualiza o status dos jogadores que ficaram sem cartas
     Object.keys(players).forEach(p => {
-        if (updatedPlayerCards[p] && updatedPlayerCards[p].length === 0 && players[p].status === 'active') {
+        if (updatedPlayerCards[p]?.length === 0 && players[p].status === 'active') {
             players[p].status = 'eliminated';
             console.log(`Player ${p} foi eliminado.`);
         }
@@ -188,13 +192,11 @@ export const processRoundResult = async (
       [`${GAMES_PATH}/${roomId}/playerCards`]: updatedPlayerCards,
       [`${GAMES_PATH}/${roomId}/roundHistory`]: [...(gameState.roundHistory || []), roundResult],
       [`${GAMES_PATH}/${roomId}/gamePhase`]: gameWinner ? 'finished' : 'comparing',
-      [`${ROOMS_PATH}/${roomId}/players`]: players, // Atualiza o status dos jogadores na sala
+      [`${ROOMS_PATH}/${roomId}/players`]: players,
     };
     
-    // O próximo jogador deve ser o vencedor da rodada, desde que ele ainda esteja ativo.
-    // Se o vencedor foi eliminado (improvável, mas possível), a lógica getNextPlayer encontrará o próximo.
     if (!gameWinner) {
-        updates[`${GAMES_PATH}/${roomId}/currentPlayer`] = winner;
+      updates[`${GAMES_PATH}/${roomId}/currentPlayer`] = winner;
     }
 
     await update(ref(database), updates);
@@ -211,25 +213,19 @@ export const processRoundResult = async (
 export const startNextRound = async (roomId: string): Promise<void> => {
   try {
     const gameRef = ref(database, `${GAMES_PATH}/${roomId}`);
-    const gameSnapshot = await get(gameRef);
-    if (!gameSnapshot.exists()) return;
-    const gameState: GameState = gameSnapshot.val();
+    const snapshot = await get(gameRef);
+    if (!snapshot.exists()) return;
 
-    const roomRef = ref(database, `${ROOMS_PATH}/${roomId}`);
-    const roomSnapshot = await get(roomRef);
-    if (!roomSnapshot.exists()) return;
-    const room: Room = roomSnapshot.val();
+    const gameState: GameState = snapshot.val();
 
-    // Determina o próximo jogador usando a nova lógica que pula os eliminados
-    const nextPlayer = getNextPlayer(gameState.currentPlayer, room.players);
-
+    // O currentPlayer já foi definido como o vencedor da rodada anterior em processRoundResult.
+    // Apenas resetamos o estado da rodada.
     const updates = {
       [`${GAMES_PATH}/${roomId}/currentRound`]: gameState.currentRound + 1,
       [`${GAMES_PATH}/${roomId}/gamePhase`]: 'selecting',
       [`${GAMES_PATH}/${roomId}/currentRoundCards`]: {},
       [`${GAMES_PATH}/${roomId}/selectedAttribute`]: null,
       [`${GAMES_PATH}/${roomId}/roundWinner`]: null,
-      [`${GAMES_PATH}/${roomId}/currentPlayer`]: nextPlayer, // Define o próximo jogador ativo
     };
 
     await update(ref(database), updates);

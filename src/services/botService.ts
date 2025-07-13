@@ -1,3 +1,5 @@
+// src/services/botService.ts
+
 import { ref, update, get } from 'firebase/database';
 import { database } from '../config/firebase';
 import { Player, GameState, Card } from '../types';
@@ -37,6 +39,7 @@ export const addBotToRoom = async (
       isReady: true,
       isBot: true,
       botDifficulty: difficulty,
+      status: 'active', // Bot já entra ativo
     };
 
     const updates = {
@@ -91,31 +94,24 @@ export const executeBotAction = async (
   allCards: Card[]
 ): Promise<void> => {
   try {
-    // Busca dados do bot para garantir que ele ainda existe e é um bot
     const playerRef = ref(database, `rooms/${roomId}/players/${botName}`);
     const playerSnapshot = await get(playerRef);
     if (!playerSnapshot.exists()) return;
     const botData = playerSnapshot.val();
-    if (!botData.isBot) return;
+    if (!botData.isBot || botData.status === 'eliminated') return;
 
     const difficulty = botData.botDifficulty || 'medium';
     const thinkingTime = getBotThinkingTime(difficulty);
-
-    // Simular tempo de pensamento
+    
     await new Promise(resolve => setTimeout(resolve, thinkingTime));
 
-    // LÓGICA CORRIGIDA: Separar as decisões do bot
-    
-    // AÇÃO 1: Jogar uma carta
-    if (gameState.gamePhase === 'selecting') {
-      // O bot sempre tenta jogar uma carta nesta fase se ainda não jogou
+    // AÇÃO 1: Bot precisa jogar uma carta
+    if (gameState.gamePhase === 'selecting' && !gameState.currentRoundCards[botName]) {
       await handleBotCardSelection(roomId, botName, gameState, allCards, difficulty);
     }
     
-    // AÇÃO 2: Selecionar um atributo
-    // A fase 'revealing' começa depois que o jogador da vez escolhe um atributo
-    // Aqui, o bot só age se ele for o jogador da vez e precisar escolher o atributo
-    if (gameState.gamePhase === 'revealing' && gameState.currentPlayer === botName) {
+    // AÇÃO 2: Bot precisa selecionar um atributo (só se for o currentPlayer)
+    if (gameState.gamePhase === 'revealing' && gameState.currentPlayer === botName && !gameState.selectedAttribute) {
       await handleBotAttributeSelection(roomId, botName, gameState, allCards, difficulty);
     }
 
@@ -135,15 +131,11 @@ const handleBotCardSelection = async (
   difficulty: 'easy' | 'medium' | 'hard'
 ): Promise<void> => {
   try {
-    if (gameState.currentRoundCards && gameState.currentRoundCards[botName]) {
-      return; // Bot já jogou
-    }
-
     const botCards = gameState.playerCards[botName] || [];
-    if (botCards.length === 0) return;
+    if (botCards.length === 0) return; // Não faz nada se não tiver cartas
 
     const decision = selectBestCard(botCards, allCards, difficulty);
-    console.log(`🤖 Bot ${botName} selecionou carta ${decision.selectedCardId} - ${decision.reasoning}`);
+    console.log(`🤖 Bot ${botName} [Dificuldade: ${difficulty}] selecionou carta ${decision.selectedCardId} - ${decision.reasoning}`);
     await playCard(roomId, botName, decision.selectedCardId);
   } catch (error) {
     console.error(`Erro na seleção de carta do bot ${botName}:`, error);
@@ -161,8 +153,6 @@ const handleBotAttributeSelection = async (
   difficulty: 'easy' | 'medium' | 'hard'
 ): Promise<void> => {
   try {
-    if (gameState.selectedAttribute) return; // Atributo já foi escolhido
-
     const botCardId = gameState.currentRoundCards?.[botName];
     if (!botCardId) return;
 
@@ -174,7 +164,7 @@ const handleBotAttributeSelection = async (
     if (difficulty === 'easy') {
       const attributes = Object.keys(botCard.attributes);
       selectedAttribute = attributes[Math.floor(Math.random() * attributes.length)];
-    } else {
+    } else { // Médio e Difícil usam a mesma lógica de melhor atributo
       let bestAttribute = '';
       let bestValue = -1;
       

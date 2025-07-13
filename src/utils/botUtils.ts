@@ -1,3 +1,5 @@
+// src/utils/botUtils.ts
+
 import { Card, BotDecision } from '../types';
 
 /**
@@ -13,7 +15,6 @@ export const generateBotName = (existingPlayers: string[]): string => {
   const availableNames = BOT_NAMES.filter(name => !existingPlayers.includes(name));
   
   if (availableNames.length === 0) {
-    // Se todos os nomes estão em uso, gera um nome numerado
     let counter = 1;
     let botName = `Bot ${counter}`;
     while (existingPlayers.includes(botName)) {
@@ -25,13 +26,6 @@ export const generateBotName = (existingPlayers: string[]): string => {
   
   const randomIndex = Math.floor(Math.random() * availableNames.length);
   return availableNames[randomIndex];
-};
-
-/**
- * Calcula o valor total de uma carta (soma de todos os atributos)
- */
-export const calculateCardTotalValue = (card: Card): number => {
-  return Object.values(card.attributes).reduce((sum, value) => sum + value, 0);
 };
 
 /**
@@ -53,6 +47,7 @@ export const findBestAttribute = (card: Card): { attribute: string; value: numbe
 
 /**
  * Estratégia de seleção de carta para bots
+ * CORREÇÃO: A seleção da CARTA agora é sempre aleatória. A dificuldade influencia a escolha do ATRIBUTO.
  */
 export const selectBestCard = (
   playerCards: string[],
@@ -67,47 +62,33 @@ export const selectBestCard = (
     throw new Error('Nenhuma carta disponível para o bot');
   }
 
-  let selectedCard: Card;
+  // A escolha da carta é sempre aleatória, independentemente da dificuldade.
+  const selectedCard = availableCards[Math.floor(Math.random() * availableCards.length)];
   let reasoning: string;
   let confidence: number;
 
   switch (difficulty) {
     case 'easy':
-      // Estratégia simples: carta aleatória
-      selectedCard = availableCards[Math.floor(Math.random() * availableCards.length)];
-      reasoning = 'Seleção aleatória (dificuldade fácil)';
+      reasoning = 'Seleção aleatória de carta (dificuldade fácil)';
       confidence = 0.3;
       break;
-
     case 'hard':
-      // Estratégia avançada: carta com melhor valor no atributo mais forte
-      selectedCard = availableCards.reduce((best, current) => {
-        const bestAttr = findBestAttribute(best);
-        const currentAttr = findBestAttribute(current);
-        return currentAttr.value > bestAttr.value ? current : best;
-      });
-      reasoning = 'Carta com o melhor atributo individual';
-      confidence = 0.9;
+       reasoning = 'Seleção aleatória de carta, melhor atributo (dificuldade difícil)';
+       confidence = 0.9;
       break;
-
     case 'medium':
     default:
-      // Estratégia balanceada: carta com maior valor total
-      selectedCard = availableCards.reduce((best, current) => {
-        const bestTotal = calculateCardTotalValue(best);
-        const currentTotal = calculateCardTotalValue(current);
-        return currentTotal > bestTotal ? current : best;
-      });
-      reasoning = 'Carta com maior valor total';
+      reasoning = 'Seleção aleatória de carta, melhor atributo (dificuldade média)';
       confidence = 0.7;
       break;
   }
 
+  // A inteligência do bot agora está em escolher o melhor atributo da carta que ele pegou.
   const bestAttribute = findBestAttribute(selectedCard);
 
   return {
     selectedCardId: selectedCard.id,
-    selectedAttribute: bestAttribute.attribute,
+    selectedAttribute: bestAttribute.attribute, // O bot já "pensa" no melhor atributo para usar
     confidence,
     reasoning,
   };

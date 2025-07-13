@@ -20,44 +20,49 @@ const BotController: React.FC<BotControllerProps> = ({
   const processedActions = useRef<Set<string>>(new Set());
 
   const handleBotActions = useCallback(async () => {
-    if (!gameState || !players || !allCards.length || !gameState.currentPlayer) {
+    if (!gameState || !players || !allCards.length) {
       return;
     }
-    
-    // CORREÇÃO: Garante que só bots ajam e que a fase seja a correta
-    const currentPlayerInfo = players[gameState.currentPlayer];
-    if (!currentPlayerInfo || !currentPlayerInfo.isBot) {
-      return;
-    }
-    
-    if (gameState.gamePhase !== 'selecting') {
-        return;
-    }
-    
-    // Cria uma chave única para a ação (jogador + rodada) para evitar repetições
-    const actionKey = `${gameState.currentPlayer}-${gameState.currentRound}`;
-    if (processedActions.current.has(actionKey)) {
-        return;
-    }
 
-    // Marca a ação como processada para não ser executada novamente
-    processedActions.current.add(actionKey);
+    // Pega todos os bots ativos na sala
+    const bots = getBotPlayers(players).filter(p => p.status === 'active');
+    if (bots.length === 0) return;
+    
+    // Itera sobre cada bot para ver se ele precisa agir
+    for (const bot of bots) {
+      const botName = bot.nickname;
+      const actionKey = `${botName}-${gameState.currentRound}-${gameState.gamePhase}`;
 
-    console.log(`🤖 Bot ${gameState.currentPlayer} deve agir na fase ${gameState.gamePhase}`);
+      if (processedActions.current.has(actionKey)) {
+        continue; // Ação já processada para este bot nesta fase/rodada
+      }
 
-    try {
-      await executeBotAction(roomId, gameState.currentPlayer, gameState, allCards);
-    } catch (error) {
-      console.error('Erro na execução da ação do bot:', error);
-      // Permite que o bot tente novamente em caso de erro
-      processedActions.current.delete(actionKey);
+      // Um bot precisa agir se:
+      // 1. A fase é 'selecting' e ele ainda não jogou.
+      // 2. A fase é 'revealing', é a vez dele e nenhum atributo foi escolhido ainda.
+      const needsToPlayCard = gameState.gamePhase === 'selecting' && !gameState.currentRoundCards[botName];
+      const needsToSelectAttribute = gameState.gamePhase === 'revealing' && gameState.currentPlayer === botName && !gameState.selectedAttribute;
+
+      if (needsToPlayCard || needsToSelectAttribute) {
+        console.log(`🤖 Bot ${botName} precisa agir na fase ${gameState.gamePhase}`);
+        processedActions.current.add(actionKey); // Marca como processado
+        
+        try {
+          await executeBotAction(roomId, botName, gameState, allCards);
+        } catch (error) {
+          console.error(`Erro na ação do bot ${botName}:`, error);
+          processedActions.current.delete(actionKey); // Permite tentar de novo em caso de erro
+        }
+      }
     }
-  }, [gameState, players, allCards, roomId, processedActions]);
-  
-  // CORREÇÃO: useEffect simplificado para monitorar o estado do jogo
+  }, [gameState, players, allCards, roomId]);
+
+  // Limpa as ações processadas quando uma nova rodada começa
   useEffect(() => {
-    // Limpa as ações processadas quando uma nova rodada começa
-    if(gameState && gameState.currentRound !== processedActions.current.size) {
+    const firstAction = processedActions.current.values().next().value;
+    const currentRoundFromActions = firstAction ? parseInt(firstAction.split('-')[1], 10) : 0;
+    
+    if (gameState && gameState.currentRound !== currentRoundFromActions) {
         processedActions.current.clear();
     }
     handleBotActions();
