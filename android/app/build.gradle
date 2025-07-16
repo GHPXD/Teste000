@@ -55,7 +55,7 @@ react {
 }
 
 /**
- * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ * Set this to true to run Proguard on Release builds to minify the Java bytecode.
  */
 def enableProguardInReleaseBuilds = false
 
@@ -85,6 +85,8 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    // AQUI COMEÇA A PARTE ALTERADA
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -92,15 +94,25 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Bloco adicionado para a chave de release
+        release {
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
+    // FIM DA PARTE ALTERADA
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // A linha abaixo foi modificada de .debug para .release
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }

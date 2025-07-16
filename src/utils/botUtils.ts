@@ -5,10 +5,19 @@ import { Card, BotDecision } from '../types';
 /**
  * Gera nomes aleatórios para bots
  */
-const BOT_NAMES = [
-  'Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta',
-  'Bot Sigma', 'Bot Omega', 'Bot Prime', 'Bot Neo',
-  'Bot Zeta', 'Bot Kappa', 'Bot Lambda', 'Bot Theta'
+const BOT_NAMES = [ 
+  'Boteco do Alphinha',     // Sempre no bar, nunca no código 🍻
+  'Betadinho Nervoso',      // Vive em beta e surtando 😬
+  'Gamagrelado',            // Magrelo e bugado 🦴
+  'Deltarado',              // Fala cada bobagem... 🤪
+  'Sigmãe',                 // Lidera, mas com carinho ❤️
+  'Omega 3',                // O único saudável do grupo 🐟
+  'Bot Primeira Dose',      // Só funciona depois da vacina 💉
+  'NeoCóptero',             // Vive voando, nunca no chão 🚁
+  'Zezeta do Grau',         // Dá grau até no terminal 🏍️
+  'Kappacete',              // Vive caindo, mas usa capacete 🪖
+  'Lambdinha do Grau',      // Curte matemática e rolezera 🤓
+  'Tetinha 3000'            // Ícone, lenda, patrimônio nacional 🐄
 ];
 
 export const generateBotName = (existingPlayers: string[]): string => {
@@ -35,6 +44,7 @@ export const findBestAttribute = (card: Card): { attribute: string; value: numbe
   let bestAttribute = '';
   let bestValue = -1;
   
+  // CORREÇÃO: Garante que a comparação funcione corretamente para todos os valores.
   Object.entries(card.attributes).forEach(([attribute, value]) => {
     if (value > bestValue) {
       bestValue = value;
@@ -46,13 +56,11 @@ export const findBestAttribute = (card: Card): { attribute: string; value: numbe
 };
 
 /**
- * Estratégia de seleção de carta para bots
- * CORREÇÃO: A seleção da CARTA agora é sempre aleatória. A dificuldade influencia a escolha do ATRIBUTO.
+ * Estratégia de seleção para bots.
  */
 export const selectBestCard = (
   playerCards: string[],
-  allCards: Card[],
-  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+  allCards: Card[]
 ): BotDecision => {
   const availableCards = playerCards
     .map(cardId => allCards.find(card => card.id === cardId))
@@ -62,51 +70,25 @@ export const selectBestCard = (
     throw new Error('Nenhuma carta disponível para o bot');
   }
 
-  // A escolha da carta é sempre aleatória, independentemente da dificuldade.
   const selectedCard = availableCards[Math.floor(Math.random() * availableCards.length)];
-  let reasoning: string;
-  let confidence: number;
+  const reasoning = 'Seleção de carta aleatória, com escolha do melhor atributo.';
+  const confidence = 0.8;
 
-  switch (difficulty) {
-    case 'easy':
-      reasoning = 'Seleção aleatória de carta (dificuldade fácil)';
-      confidence = 0.3;
-      break;
-    case 'hard':
-       reasoning = 'Seleção aleatória de carta, melhor atributo (dificuldade difícil)';
-       confidence = 0.9;
-      break;
-    case 'medium':
-    default:
-      reasoning = 'Seleção aleatória de carta, melhor atributo (dificuldade média)';
-      confidence = 0.7;
-      break;
-  }
-
-  // A inteligência do bot agora está em escolher o melhor atributo da carta que ele pegou.
   const bestAttribute = findBestAttribute(selectedCard);
 
   return {
     selectedCardId: selectedCard.id,
-    selectedAttribute: bestAttribute.attribute, // O bot já "pensa" no melhor atributo para usar
+    selectedAttribute: bestAttribute.attribute, // Agora o atributo selecionado é de fato o melhor da carta.
     confidence,
     reasoning,
   };
 };
 
 /**
- * Calcula tempo de "pensamento" do bot baseado na dificuldade
+ * Calcula tempo de "pensamento" do bot.
  */
-export const getBotThinkingTime = (difficulty: 'easy' | 'medium' | 'hard' = 'medium'): number => {
-  switch (difficulty) {
-    case 'easy':
-      return Math.random() * 1000 + 500; // 0.5-1.5s
-    case 'hard':
-      return Math.random() * 2000 + 2000; // 2-4s
-    case 'medium':
-    default:
-      return Math.random() * 1500 + 1000; // 1-2.5s
-  }
+export const getBotThinkingTime = (): number => {
+  return Math.random() * 1500 + 1000; // 1-2.5s
 };
 
 /**
@@ -122,7 +104,6 @@ const BOT_MESSAGES = [
 ];
 
 export const generateBotChatMessage = (): string | null => {
-  // 20% de chance de enviar uma mensagem
   if (Math.random() < 0.2) {
     const randomIndex = Math.floor(Math.random() * BOT_MESSAGES.length);
     return BOT_MESSAGES[randomIndex];

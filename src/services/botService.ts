@@ -9,10 +9,7 @@ import { playCard, selectAttribute } from './gameService';
 /**
  * Adiciona um bot à sala
  */
-export const addBotToRoom = async (
-  roomId: string,
-  difficulty: 'easy' | 'medium' | 'hard' = 'medium'
-): Promise<string> => {
+export const addBotToRoom = async (roomId: string): Promise<string> => {
   try {
     const roomRef = ref(database, `rooms/${roomId}`);
     const roomSnapshot = await get(roomRef);
@@ -38,8 +35,9 @@ export const addBotToRoom = async (
       joinedAt: new Date().toISOString(),
       isReady: true,
       isBot: true,
-      botDifficulty: difficulty,
-      status: 'active', // Bot já entra ativo
+      // Dificuldade removida, agora é o comportamento padrão
+      botDifficulty: 'medium', 
+      status: 'active',
     };
 
     const updates = {
@@ -100,19 +98,17 @@ export const executeBotAction = async (
     const botData = playerSnapshot.val();
     if (!botData.isBot || botData.status === 'eliminated') return;
 
-    const difficulty = botData.botDifficulty || 'medium';
-    const thinkingTime = getBotThinkingTime(difficulty);
+    // A dificuldade agora é padrão, mas a lógica de tempo pode permanecer
+    const thinkingTime = getBotThinkingTime('medium'); 
     
     await new Promise(resolve => setTimeout(resolve, thinkingTime));
 
-    // AÇÃO 1: Bot precisa jogar uma carta
     if (gameState.gamePhase === 'selecting' && !gameState.currentRoundCards[botName]) {
-      await handleBotCardSelection(roomId, botName, gameState, allCards, difficulty);
+      await handleBotCardSelection(roomId, botName, gameState, allCards);
     }
     
-    // AÇÃO 2: Bot precisa selecionar um atributo (só se for o currentPlayer)
     if (gameState.gamePhase === 'revealing' && gameState.currentPlayer === botName && !gameState.selectedAttribute) {
-      await handleBotAttributeSelection(roomId, botName, gameState, allCards, difficulty);
+      await handleBotAttributeSelection(roomId, botName, gameState, allCards);
     }
 
   } catch (error) {
@@ -127,15 +123,15 @@ const handleBotCardSelection = async (
   roomId: string,
   botName: string,
   gameState: GameState,
-  allCards: Card[],
-  difficulty: 'easy' | 'medium' | 'hard'
+  allCards: Card[]
 ): Promise<void> => {
   try {
     const botCards = gameState.playerCards[botName] || [];
-    if (botCards.length === 0) return; // Não faz nada se não tiver cartas
+    if (botCards.length === 0) return;
 
-    const decision = selectBestCard(botCards, allCards, difficulty);
-    console.log(`🤖 Bot ${botName} [Dificuldade: ${difficulty}] selecionou carta ${decision.selectedCardId} - ${decision.reasoning}`);
+    // A dificuldade é omitida, usando a lógica padrão (aleatória) de selectBestCard
+    const decision = selectBestCard(botCards, allCards);
+    console.log(`🤖 Bot ${botName} selecionou carta ${decision.selectedCardId} - ${decision.reasoning}`);
     await playCard(roomId, botName, decision.selectedCardId);
   } catch (error) {
     console.error(`Erro na seleção de carta do bot ${botName}:`, error);
@@ -143,14 +139,13 @@ const handleBotCardSelection = async (
 };
 
 /**
- * Bot seleciona atributo (apenas se for o primeiro jogador da rodada)
+ * Bot seleciona atributo (apenas se for o jogador da vez)
  */
 const handleBotAttributeSelection = async (
   roomId: string,
   botName: string,
   gameState: GameState,
   allCards: Card[],
-  difficulty: 'easy' | 'medium' | 'hard'
 ): Promise<void> => {
   try {
     const botCardId = gameState.currentRoundCards?.[botName];
@@ -159,25 +154,19 @@ const handleBotAttributeSelection = async (
     const botCard = allCards.find(card => card.id === botCardId);
     if (!botCard) return;
 
-    let selectedAttribute: string;
+    // A lógica para escolher o melhor atributo já está correta
+    let bestAttribute = '';
+    let bestValue = -1;
     
-    if (difficulty === 'easy') {
-      const attributes = Object.keys(botCard.attributes);
-      selectedAttribute = attributes[Math.floor(Math.random() * attributes.length)];
-    } else { // Médio e Difícil usam a mesma lógica de melhor atributo
-      let bestAttribute = '';
-      let bestValue = -1;
-      
-      Object.entries(botCard.attributes).forEach(([attribute, value]) => {
-        if (value > bestValue) {
-          bestValue = value;
-          bestAttribute = attribute;
-        }
-      });
-      selectedAttribute = bestAttribute;
-    }
+    Object.entries(botCard.attributes).forEach(([attribute, value]) => {
+      if (value > bestValue) {
+        bestValue = value;
+        bestAttribute = attribute;
+      }
+    });
+    const selectedAttribute = bestAttribute;
 
-    console.log(`🤖 Bot ${botName} selecionou atributo ${selectedAttribute}`);
+    console.log(`🤖 Bot ${botName} selecionou o melhor atributo: ${selectedAttribute}`);
     await selectAttribute(roomId, selectedAttribute);
   } catch (error) {
     console.error(`Erro na seleção de atributo do bot ${botName}:`, error);

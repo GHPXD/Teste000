@@ -1,3 +1,5 @@
+// src/screens/LobbyScreen.tsx
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -145,7 +147,7 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
       } else {
         if (!validateRoomCode(roomCode)) {
           Alert.alert('Erro', 'Código inválido. Use 6 caracteres (letras e números).');
-          setIsLoading(false); // Liberar loading
+          setIsLoading(false);
           return;
         }
         
@@ -207,11 +209,7 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
 
     const playerCount = Object.keys(state.currentRoom.players).length;
     if (playerCount < 2) {
-      Alert.alert(
-        'Jogadores Insuficientes',
-        'É necessário pelo menos 2 jogadores para iniciar o jogo.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Jogadores Insuficientes', 'É necessário pelo menos 2 jogadores para iniciar o jogo.');
       return;
     }
 
@@ -245,17 +243,13 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
       navigation.navigate('Game', { roomId: state.currentRoom.id });
     } catch (error) {
       console.error('Erro ao iniciar jogo:', error);
-      Alert.alert(
-        'Erro',
-        'Não foi possível iniciar o jogo. Tente novamente.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Erro', 'Não foi possível iniciar o jogo. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddBot = async (difficulty: 'easy' | 'medium' | 'hard' = 'medium') => {
+  const handleAddBot = async () => {
     if (!state.currentRoom) return;
 
     const currentPlayerCount = Object.keys(state.currentRoom.players).length;
@@ -266,7 +260,8 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
 
     setIsLoading(true);
     try {
-      const botName = await addBotToRoom(state.currentRoom.id, difficulty);
+      // A chamada agora é direta, sem passar dificuldade
+      const botName = await addBotToRoom(state.currentRoom.id);
       console.log(`Bot ${botName} adicionado com sucesso`);
     } catch (error: any) {
       Alert.alert('Erro', error.message || 'Não foi possível adicionar o bot');
@@ -334,7 +329,6 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  // Renderização condicional do Lobby ou da Sala
   if (state.currentRoom && state.currentRoom.players) {
     const players = state.currentRoom.players || {};
     const playerCount = Object.keys(players).length;
@@ -343,25 +337,16 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.roomContainer}>
-          {/* Header da sala */}
           <View style={styles.roomHeader}>
             <View>
-              <Text style={styles.roomTitle}>
-                Sala {state.currentRoom.code || 'N/A'}
-              </Text>
-              <Text style={styles.roomSubtitle}>
-                {state.currentRoom.deckName || 'Baralho não definido'}
-              </Text>
+              <Text style={styles.roomTitle}>Sala {state.currentRoom.code || 'N/A'}</Text>
+              <Text style={styles.roomSubtitle}>{state.currentRoom.deckName || 'Baralho não definido'}</Text>
             </View>
-            <TouchableOpacity
-              style={styles.leaveButton}
-              onPress={handleLeaveRoom}
-            >
+            <TouchableOpacity style={styles.leaveButton} onPress={handleLeaveRoom}>
               <Text style={styles.leaveButtonText}>Sair</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Controles de Bot (apenas para o host) */}
           {state.currentRoom.hostNickname === state.playerNickname && (
             <View style={styles.botControlsSection}>
               <Text style={styles.sectionTitle}>Controles de Bot</Text>
@@ -373,18 +358,8 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
                     styles.addBotButton,
                     Object.keys(state.currentRoom.players).length >= state.currentRoom.maxPlayers && styles.botButtonDisabled
                   ]}
-                  onPress={() => {
-                    Alert.alert(
-                      'Adicionar Bot',
-                      'Escolha a dificuldade do bot:',
-                      [
-                        { text: 'Fácil', onPress: () => handleAddBot('easy') },
-                        { text: 'Médio', onPress: () => handleAddBot('medium') },
-                        { text: 'Difícil', onPress: () => handleAddBot('hard') },
-                        { text: 'Cancelar', style: 'cancel' },
-                      ]
-                    );
-                  }}
+                  // CORREÇÃO: Chama handleAddBot diretamente
+                  onPress={handleAddBot}
                   disabled={Object.keys(state.currentRoom.players).length >= state.currentRoom.maxPlayers || isLoading}
                 >
                   <Text style={styles.botButtonText}>🤖 Adicionar Bot</Text>
@@ -410,11 +385,8 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           )}
 
-          {/* Lista de jogadores */}
           <View style={styles.playersSection}>
-            <Text style={styles.sectionTitle}>
-              Jogadores ({playerCount}/{maxPlayers})
-            </Text>
+            <Text style={styles.sectionTitle}>Jogadores ({playerCount}/{maxPlayers})</Text>
             <ScrollView style={styles.playersList}>
               {playerCount > 0 ? (
                 Object.values(players).map((player) => (
@@ -424,65 +396,31 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
                       {player.isHost && ' 👑'}
                       {player.isBot && ' 🤖'}
                     </Text>
-                    <Text style={[
-                      styles.playerStatus,
-                      player.isReady && styles.playerReady
-                    ]}>
-                      {player.isBot ? 
-                        `Bot (${player.botDifficulty || 'medium'})` : 
-                        (player.isReady ? 'Pronto' : 'Aguardando')
-                      }
+                    <Text style={[styles.playerStatus, player.isReady && styles.playerReady]}>
+                      {player.isBot ? 'Bot' : (player.isReady ? 'Pronto' : 'Aguardando')}
                     </Text>
                   </View>
                 ))
               ) : (
-                <View style={styles.emptyPlayersContainer}>
-                  <Text style={styles.emptyPlayersText}>
-                    Carregando jogadores...
-                  </Text>
-                </View>
+                <View style={styles.emptyPlayersContainer}><Text style={styles.emptyPlayersText}>Carregando jogadores...</Text></View>
               )}
             </ScrollView>
           </View>
 
-          {/* Botões de ação */}
           <View style={styles.actionsContainer}>
-            <TouchableOpacity
-              style={styles.chatButton}
-              onPress={() => setShowChatModal(true)}
-            >
+            <TouchableOpacity style={styles.chatButton} onPress={() => setShowChatModal(true)}>
               <Text style={styles.chatButtonText}>💬 Chat</Text>
             </TouchableOpacity>
-
             {state.currentRoom.hostNickname !== state.playerNickname && (
-              <TouchableOpacity
-                style={[
-                  styles.readyButton,
-                  state.currentRoom.players[state.playerNickname]?.isReady && styles.readyButtonActive
-                ]}
-                onPress={toggleReadyStatus}
-              >
-                <Text style={[
-                  styles.readyButtonText,
-                  state.currentRoom.players[state.playerNickname]?.isReady && styles.readyButtonTextActive
-                ]}>
+              <TouchableOpacity style={[styles.readyButton, state.currentRoom.players[state.playerNickname]?.isReady && styles.readyButtonActive]} onPress={toggleReadyStatus}>
+                <Text style={[styles.readyButtonText, state.currentRoom.players[state.playerNickname]?.isReady && styles.readyButtonTextActive]}>
                   {state.currentRoom.players[state.playerNickname]?.isReady ? '✓ Pronto' : 'Marcar como Pronto'}
                 </Text>
               </TouchableOpacity>
             )}
-            
             {state.currentRoom.hostNickname === state.playerNickname && (
-              <TouchableOpacity
-                style={[
-                  styles.startButton,
-                  isLoading && styles.startButtonDisabled
-                ]}
-                onPress={handleStartGame}
-                disabled={isLoading}
-              >
-                <Text style={styles.startButtonText}>
-                  {isLoading ? 'Iniciando...' : 'Iniciar Jogo'}
-                </Text>
+              <TouchableOpacity style={[styles.startButton, isLoading && styles.startButtonDisabled]} onPress={handleStartGame} disabled={isLoading}>
+                <Text style={styles.startButtonText}>{isLoading ? 'Iniciando...' : 'Iniciar Jogo'}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -502,37 +440,18 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>🎮 Lobby</Text>
-        <Text style={styles.subtitle}>
-          {state.playerNickname} • {state.selectedDeck?.name}
-        </Text>
+        <Text style={styles.subtitle}>{state.playerNickname} • {state.selectedDeck?.name}</Text>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
-        }
-      >
+      <ScrollView style={styles.content} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Criar Nova Sala</Text>
           <View style={styles.createButtons}>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary]}
-              onPress={() => handleCreateRoom(false)}
-              disabled={isLoading}
-            >
-              <Text style={styles.buttonText}>
-                {isLoading ? 'Criando...' : 'Sala Pública'}
-              </Text>
+            <TouchableOpacity style={[styles.button, styles.buttonPrimary]} onPress={() => handleCreateRoom(false)} disabled={isLoading}>
+              <Text style={styles.buttonText}>{isLoading ? 'Criando...' : 'Sala Pública'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonSecondary]}
-              onPress={() => handleCreateRoom(true)}
-              disabled={isLoading}
-            >
-              <Text style={styles.buttonTextSecondary}>
-                {isLoading ? 'Criando...' : 'Sala Privada'}
-              </Text>
+            <TouchableOpacity style={[styles.button, styles.buttonSecondary]} onPress={() => handleCreateRoom(true)} disabled={isLoading}>
+              <Text style={styles.buttonTextSecondary}>{isLoading ? 'Criando...' : 'Sala Privada'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -552,53 +471,31 @@ const LobbyScreen: React.FC<Props> = ({ navigation }) => {
               onSubmitEditing={() => handleJoinRoom()}
             />
             <TouchableOpacity
-              style={[
-                styles.joinButton,
-                (!validateRoomCode(roomCode) || isLoading) && styles.joinButtonDisabled
-              ]}
+              style={[styles.joinButton, (!validateRoomCode(roomCode) || isLoading) && styles.joinButtonDisabled]}
               onPress={() => handleJoinRoom()}
               disabled={!validateRoomCode(roomCode) || isLoading}
             >
-              <Text style={styles.joinButtonText}>
-                {isLoading ? '...' : 'Entrar'}
-              </Text>
+              <Text style={styles.joinButtonText}>{isLoading ? '...' : 'Entrar'}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Salas Públicas ({publicRooms.length})
-          </Text>
+          <Text style={styles.sectionTitle}>Salas Públicas ({publicRooms.length})</Text>
           {publicRooms.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                Nenhuma sala pública disponível.{'\n'}
-                Seja o primeiro a criar uma!
-              </Text>
-            </View>
+            <View style={styles.emptyContainer}><Text style={styles.emptyText}>Nenhuma sala pública disponível.{'\n'}Seja o primeiro a criar uma!</Text></View>
           ) : (
-            publicRooms.map((room) => (
-              <SalaItem
-                key={room.id}
-                room={room}
-                onJoin={handleJoinRoom}
-                isLoading={isLoading}
-              />
-            ))
+            publicRooms.map((room) => (<SalaItem key={room.id} room={room} onJoin={handleJoinRoom} isLoading={isLoading} />))
           )}
         </View>
       </ScrollView>
 
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      )}
+      {isLoading && (<View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#007AFF" /></View>)}
     </SafeAreaView>
   );
 };
 
+// ... (estilos permanecem os mesmos)
 const styles = StyleSheet.create({
   container: {
     flex: 1,

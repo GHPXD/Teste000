@@ -41,13 +41,13 @@ const Carta: React.FC<CartaProps> = ({
   const animatedValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // CORREÇÃO: Invertemos a lógica. 0 = verso, 180 = frente.
     const toValue = isRevealed ? 180 : 0;
     Animated.timing(animatedValue, {
       toValue,
-      duration: 400, // Animação um pouco mais rápida
+      duration: 400,
       useNativeDriver: true,
     }).start();
+    // CORREÇÃO: Adicionada a dependência 'animatedValue' para satisfazer o linter.
   }, [isRevealed, animatedValue]);
 
   const handlePress = () => {
@@ -56,7 +56,6 @@ const Carta: React.FC<CartaProps> = ({
     }
   };
 
-  // O verso começa visível (0deg) e vira para trás (180deg)
   const backAnimatedStyle = {
     transform: [
       {
@@ -68,7 +67,6 @@ const Carta: React.FC<CartaProps> = ({
     ],
   };
   
-  // A frente começa virada para trás (-180deg) e vira para frente (0deg)
   const frontAnimatedStyle = {
     transform: [
       {
@@ -87,12 +85,14 @@ const Carta: React.FC<CartaProps> = ({
         isSelected && styles.selectedContainer,
       ]}
       onPress={handlePress}
-      disabled={!isSelectable}
+      disabled={!isSelectable && !isAttributeSelectable}
       activeOpacity={0.9}
     >
       <Animated.View style={[styles.cardBase, styles.cardBack, backAnimatedStyle]}>
         <View style={styles.backPattern}>
-          <Image source={require('../../assets/images/logo-verso.png.png')} style={styles.logoImage} />
+          {/* Você pode adicionar sua imagem de logo aqui se tiver uma */}
+          {/* <Image source={require('../assets/images/logo-verso.png')} style={styles.logoImage} /> */}
+          <Text style={styles.backText}>🎴</Text>
           <Text style={styles.backTitle}>TRUNFIA</Text>
         </View>
       </Animated.View>
@@ -131,7 +131,7 @@ const Carta: React.FC<CartaProps> = ({
         </View>
       </Animated.View>
 
-      {isSelected && !isRevealed && (
+      {isSelected && (
         <View style={styles.selectionIndicator}>
           <Text style={styles.selectionIcon}>✓</Text>
         </View>
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   cardBack: {
-    backgroundColor: '#2c3e50', // Cor mais escura
+    backgroundColor: '#2c3e50',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -179,10 +179,9 @@ const styles = StyleSheet.create({
   backPattern: {
     alignItems: 'center',
   },
-  logoImage: {
-    width: 60,
-    height: 60,
-    marginBottom: 10,
+  backText: {
+    fontSize: 48,
+    marginBottom: 8,
   },
   backTitle: {
     fontSize: 20,
@@ -190,10 +189,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
     letterSpacing: 3,
   },
+  logoImage: {
+    width: 60,
+    height: 60,
+    marginBottom: 10,
+  },
   imageContainer: {
-    height: '35%', // Aumentado para dar mais destaque à imagem
+    height: '35%',
     width: '100%',
     backgroundColor: '#e9ecef',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cardImage: {
     width: '100%',
@@ -204,7 +210,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     color: '#6c757d',
-    paddingTop: 20
+    padding: 5,
   },
   attributesWrapper: {
     height: '65%',

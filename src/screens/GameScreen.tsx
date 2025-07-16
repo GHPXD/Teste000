@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList, GameState, Card, RoundResult } from '../types';
 import { useGame } from '../contexts/GameContext';
 import {
@@ -41,6 +42,7 @@ interface Props {
 const GameScreen: React.FC<Props> = ({ route, navigation }) => {
   const { roomId } = route.params;
   const { state } = useGame();
+  const insets = useSafeAreaInsets();
 
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [allCards, setAllCards] = useState<Card[]>([]);
@@ -122,13 +124,12 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
     updatePlayerHand(gameState, allCards);
   }, [gameState, allCards, updatePlayerHand]);
   
-  // CORREÇÃO: Limpa o estado local quando uma nova rodada começa
   useEffect(() => {
     if (gameState?.gamePhase === 'selecting') {
       setSelectedCardId(null);
       setTentativeAttribute(null);
     }
-  }, [gameState?.currentRound]);
+  }, [gameState?.currentRound, gameState?.gamePhase]);
 
   useEffect(() => {
     if (gameState?.gamePhase === 'revealing' && !isProcessingRound.current) {
@@ -140,7 +141,6 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
             });
         }
     }
-
     if ((gameState?.gamePhase === 'comparing' || gameState?.gamePhase === 'finished') && gameState.roundHistory.length > 0) {
         const lastResult = gameState.roundHistory[gameState.roundHistory.length - 1];
         if (lastResult.roundNumber === gameState.currentRound) {
@@ -174,23 +174,31 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
   }, [showResultModal, gameState, state.currentRoom, state.playerNickname, handleNextRound]);
 
   const handleCardSelect = (card: Card) => {
-    if (!gameState || gameState.gamePhase !== 'selecting' || hasPlayedCard) return;
-    
-    // Se clicar na mesma carta, desvira. Se for outra, vira a nova.
-    if (selectedCardId === card.id) {
-        setSelectedCardId(null);
-        setTentativeAttribute(null);
+    if (hasPlayedCard) return; // Não faz nada se já jogou
+
+    const cardId = card.id;
+    const isCurrentPlayer = gameState?.currentPlayer === state.playerNickname;
+
+    // Lógica para o jogador da vez (mandante)
+    if (isCurrentPlayer) {
+        if (selectedCardId === cardId) {
+            setSelectedCardId(null); // Des-seleciona ao clicar de novo
+            setTentativeAttribute(null);
+        } else {
+            setSelectedCardId(cardId); // Seleciona a carta
+            setTentativeAttribute(null); // Reseta o atributo
+        }
     } else {
-        setSelectedCardId(card.id);
-        setTentativeAttribute(null); // Reseta atributo ao selecionar nova carta
+        // Lógica para jogador normal: seleciona e joga de uma vez
+        setSelectedCardId(cardId);
+        handlePlayCardForNonCurrentPlayer(cardId);
     }
   };
-
-  const handlePlayCard = async () => {
-    if (!selectedCardId || !gameState) return;
+  
+  const handlePlayCardForNonCurrentPlayer = async (cardId: string) => {
     setIsLoading(true);
     try {
-      await playCard(roomId, state.playerNickname, selectedCardId);
+      await playCard(roomId, state.playerNickname, cardId);
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível jogar a carta');
     } finally {
@@ -199,7 +207,7 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleConfirmTurn = async () => {
-    if (!selectedCardId || !tentativeAttribute || !gameState) return;
+    if (!selectedCardId || !tentativeAttribute) return;
     setIsLoading(true);
     try {
       await playCard(roomId, state.playerNickname, selectedCardId);
@@ -219,14 +227,7 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
   };
   
   if (!state.currentRoom || !state.currentRoom.players || !gameState) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Carregando jogo...</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return (<SafeAreaView style={styles.container}><View style={styles.loadingContainer}><ActivityIndicator size="large" color="#007AFF" /><Text style={styles.loadingText}>Carregando jogo...</Text></View></SafeAreaView>);
   }
   
   const players = Object.values(state.currentRoom.players);
@@ -234,68 +235,29 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
   const hasPlayedCard = !!(gameState.currentRoundCards && gameState.currentRoundCards[state.playerNickname]);
 
   if (gameState.gamePhase === 'spinning') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <SpinWheel players={Object.keys(state.currentRoom.players)} selectedPlayer={gameState.currentPlayer} isSpinning onSpinComplete={() => {}} />
-      </SafeAreaView>
-    );
+    return (<SafeAreaView style={styles.container}><SpinWheel players={Object.keys(state.currentRoom.players)} selectedPlayer={gameState.currentPlayer} isSpinning onSpinComplete={() => {}} /></SafeAreaView>);
   }
-
-  // Lógica para esconder a mão quando uma carta é selecionada pelo jogador da vez
-  const shouldShowFullHand = !isCurrentPlayer || !selectedCardId || hasPlayedCard;
+  
+  const shouldShowFullHand = !selectedCardId || hasPlayedCard;
 
   return (
     <SafeAreaView style={styles.container}>
       <RodadaInfo gameState={gameState} playerNickname={state.playerNickname} playerCount={players.filter(p => p.status === 'active').length} />
       <BotController roomId={roomId} gameState={gameState} players={state.currentRoom.players} allCards={allCards} />
       <ScrollView style={styles.gameArea} contentContainerStyle={styles.gameContent}>
-        {players.length > 0 && (
-          <View style={styles.opponentsArea}>
-            <Text style={styles.sectionTitle}>Outros Jogadores</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {players.filter(p => p.nickname !== state.playerNickname).map(player => {
-                const isEliminated = player.status === 'eliminated';
-                return (
-                  <View key={player.nickname} style={[styles.opponentCard, isEliminated && styles.eliminatedOpponent]}>
-                    <Text style={styles.opponentName}>{player.nickname}{player.isBot && ' 🤖'}</Text>
-                    <View style={styles.opponentCardBack}>
-                      <Text style={styles.cardCount}>{gameState.playerCards?.[player.nickname]?.length || 0}</Text>
-                      <Text style={styles.cardCountLabel}>cartas</Text>
-                    </View>
-                    {isEliminated ? (
-                      <View style={styles.eliminatedOverlay}><Text style={styles.eliminatedText}>ELIMINADO</Text></View>
-                    ) : (
-                      <>{gameState.currentRoundCards?.[player.nickname] && (<View style={styles.playedCardIndicator}><Text style={styles.playedCardText}>✓ Jogou</Text></View>)}{player.isBot && gameState.currentPlayer === player.nickname && (<View style={styles.botThinkingIndicator}><Text style={styles.botThinkingText}>💭 Pensando...</Text></View>)}</>
-                    )}
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
-        {Object.keys(gameState.currentRoundCards || {}).length > 0 && (gameState.gamePhase === 'revealing' || gameState.gamePhase === 'comparing') && (
-          <View style={styles.revealedCardsArea}>
-            <Text style={styles.sectionTitle}>Cartas da Rodada</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {Object.entries(gameState.currentRoundCards || {}).map(([player, cardId]) => {
-                const card = allCards.find(c => c.id === cardId);
-                return card ? (
-                  <View key={player} style={styles.revealedCardContainer}>
-                    <Text style={styles.revealedPlayerName}>{player}</Text>
-                    <Carta card={card} isRevealed={true} isSelected={false} isSelectable={false} selectedAttribute={gameState.selectedAttribute || undefined} />
-                  </View>
-                ) : null;
-              })}
-            </ScrollView>
-          </View>
-        )}
+        {players.length > 0 && (<View style={styles.opponentsArea}><Text style={styles.sectionTitle}>Outros Jogadores</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {players.filter(p => p.nickname !== state.playerNickname).map(player => {
+            const isEliminated = player.status === 'eliminated';
+            return (<View key={player.nickname} style={[styles.opponentCard, isEliminated && styles.eliminatedOpponent]}><Text style={styles.opponentName}>{player.nickname}{player.isBot && ' 🤖'}</Text><View style={styles.opponentCardBack}><Text style={styles.cardCount}>{gameState.playerCards?.[player.nickname]?.length || 0}</Text><Text style={styles.cardCountLabel}>cartas</Text></View>{isEliminated ? (<View style={styles.eliminatedOverlay}><Text style={styles.eliminatedText}>ELIMINADO</Text></View>) : (<>{gameState.currentRoundCards?.[player.nickname] && (<View style={styles.playedCardIndicator}><Text style={styles.playedCardText}>✓ Jogou</Text></View>)}{player.isBot && gameState.currentPlayer === player.nickname && (<View style={styles.botThinkingIndicator}><Text style={styles.botThinkingText}>💭 Pensando...</Text></View>)}</>)}</View>);
+            })}</ScrollView></View>)}
+        {Object.keys(gameState.currentRoundCards || {}).length > 0 && (gameState.gamePhase === 'revealing' || gameState.gamePhase === 'comparing') && (<View style={styles.revealedCardsArea}><Text style={styles.sectionTitle}>Cartas da Rodada</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {Object.entries(gameState.currentRoundCards || {}).map(([player, cardId]) => {
+            const card = allCards.find(c => c.id === cardId);
+            return card ? (<View key={player} style={styles.revealedCardContainer}><Text style={styles.revealedPlayerName}>{player}</Text><Carta card={card} isRevealed={true} isSelected={false} isSelectable={false} selectedAttribute={gameState.selectedAttribute || undefined} /></View>) : null;
+            })}</ScrollView></View>)}
         <View style={styles.playerHandArea}>
           <Text style={styles.sectionTitle}>Suas Cartas ({playerHand.length})</Text>
-          {gameState.gamePhase === 'selecting' && !hasPlayedCard && (
-            <Text style={styles.instruction}>
-              {isCurrentPlayer ? 'Vire uma carta e escolha um atributo' : 'Vire sua carta para jogar'}
-            </Text>
-          )}
+          {gameState.gamePhase === 'selecting' && !hasPlayedCard && (<Text style={styles.instruction}>{isCurrentPlayer ? 'Vire sua carta e escolha um atributo' : 'Vire sua carta para jogar'}</Text>)}
           {gameState.gamePhase === 'selecting' && hasPlayedCard && (<Text style={styles.waitingText}>Aguardando outros jogadores...</Text>)}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.handScroll}>
             {playerHand.map(card => {
@@ -304,21 +266,20 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
                     <Carta
                         key={card.id}
                         card={card}
-                        isRevealed={selectedCardId === card.id}
+                        isRevealed={selectedCardId === card.id || hasPlayedCard}
                         isSelected={selectedCardId === card.id}
                         isSelectable={!hasPlayedCard}
                         onSelect={() => handleCardSelect(card)}
-                        isAttributeSelectable={isCurrentPlayer && selectedCardId === card.id}
+                        isAttributeSelectable={isCurrentPlayer && selectedCardId === card.id && !hasPlayedCard}
                         onAttributeSelect={setTentativeAttribute}
-                        selectedAttribute={isCurrentPlayer && selectedCardId === card.id ? tentativeAttribute : undefined}
+                        selectedAttribute={isCurrentPlayer && selectedCardId === card.id ? (tentativeAttribute || undefined) : undefined}
                     />
                 );
             })}
           </ScrollView>
         </View>
       </ScrollView>
-      <View style={styles.actionArea}>
-        {!isCurrentPlayer && selectedCardId && !hasPlayedCard && (<TouchableOpacity style={[styles.actionButton, styles.playButton]} onPress={handlePlayCard} disabled={isLoading}><Text style={styles.actionButtonText}>{isLoading ? 'Jogando...' : 'Jogar Esta Carta'}</Text></TouchableOpacity>)}
+      <View style={[styles.actionArea, { paddingBottom: insets.bottom || 16 }]}>
         {isCurrentPlayer && selectedCardId && tentativeAttribute && !hasPlayedCard && (<TouchableOpacity style={[styles.actionButton, styles.confirmButton]} onPress={handleConfirmTurn} disabled={isLoading}><Text style={styles.actionButtonText}>{isLoading ? 'Confirmando...' : 'Confirmar Jogada'}</Text></TouchableOpacity>)}
       </View>
       <ResultadoModal visible={showResultModal} roundResult={currentRoundResult} allCards={allCards} playerNickname={state.playerNickname} onClose={handleCloseModal} onNextRound={handleNextRound} isGameFinished={!!gameState.gameWinner} gameWinner={gameState.gameWinner || undefined} isHost={state.playerNickname === state.currentRoom.hostNickname} />
@@ -326,6 +287,7 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
     </SafeAreaView>
   );
 };
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F5F5F5' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
@@ -353,7 +315,7 @@ const styles = StyleSheet.create({
     revealedPlayerName: { fontSize: 12, fontWeight: '600', color: '#333', marginBottom: 8 },
     playerHandArea: { marginBottom: 24 },
     handScroll: { paddingHorizontal: 16, alignItems: 'center' },
-    actionArea: { padding: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
+    actionArea: { paddingHorizontal: 16, paddingTop: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
     actionButton: { height: 56, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     playButton: { backgroundColor: '#4CAF50' },
     confirmButton: { backgroundColor: '#FF9800' },
