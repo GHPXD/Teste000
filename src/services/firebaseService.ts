@@ -25,6 +25,7 @@ const CHAT_PATH = 'chat';
  */
 export const createRoom = async (
   hostNickname: string,
+  hostAvatar: string, // NOVO
   deckId: string,
   deckName: string,
   isPrivate: boolean = false
@@ -40,10 +41,11 @@ export const createRoom = async (
 
     const hostPlayer: Player = {
       nickname: hostNickname,
+      avatar: hostAvatar, // NOVO
       isHost: true,
       joinedAt: new Date().toISOString(),
       isReady: true,
-      status: 'active', // NOVO
+      status: 'active',
     };
 
     const newRoom: Room = {
@@ -75,7 +77,8 @@ export const createRoom = async (
  */
 export const joinRoom = async (
   roomCode: string,
-  playerNickname: string
+  playerNickname: string,
+  playerAvatar: string // NOVO
 ): Promise<Room> => {
   try {
     const roomsRef = ref(database, ROOMS_PATH);
@@ -104,10 +107,11 @@ export const joinRoom = async (
 
     const newPlayer: Player = {
       nickname: playerNickname,
+      avatar: playerAvatar, // NOVO
       isHost: false,
       joinedAt: new Date().toISOString(),
       isReady: false,
-      status: 'active', // NOVO
+      status: 'active',
     };
 
     const updates = {

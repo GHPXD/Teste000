@@ -15,11 +15,13 @@ export const shuffleArray = <T>(array: T[]): T[] => {
 };
 
 /**
- * Distribui cartas entre jogadores
+ * Distribui cartas entre jogadores de forma perfeitamente igual.
  */
 export const distributeCards = (cards: Card[], players: string[]): { [playerNickname: string]: string[] } => {
   const shuffledCards = shuffleArray(cards);
-  const cardsPerPlayer = Math.floor(shuffledCards.length / players.length);
+  const playerCount = players.length;
+  // CORREÇÃO: Garante que a divisão seja exata e o resto seja descartado.
+  const cardsPerPlayer = Math.floor(shuffledCards.length / playerCount);
   const playerCards: { [playerNickname: string]: string[] } = {};
 
   players.forEach((player, index) => {
@@ -27,15 +29,6 @@ export const distributeCards = (cards: Card[], players: string[]): { [playerNick
     const endIndex = startIndex + cardsPerPlayer;
     playerCards[player] = shuffledCards.slice(startIndex, endIndex).map(card => card.id);
   });
-
-  // Garante que todas as cartas sejam distribuídas em caso de sobra
-  let remainderIndex = players.length * cardsPerPlayer;
-  let playerIndex = 0;
-  while (remainderIndex < shuffledCards.length) {
-    playerCards[players[playerIndex]].push(shuffledCards[remainderIndex].id);
-    playerIndex = (playerIndex + 1) % players.length;
-    remainderIndex++;
-  }
 
   return playerCards;
 };
@@ -58,7 +51,9 @@ export const compareCards = (
   allCards: Card[]
 ): { winner: string; results: { [playerNickname: string]: { cardId: string; value: number } } } => {
   const results: { [playerNickname: string]: { cardId: string; value: number } } = {};
-  let maxValue = -1;
+  
+  const isLowerBetter = attribute === 'Fundação';
+  let bestValue = isLowerBetter ? Infinity : -1;
   let winner = '';
 
   Object.entries(roundCards).forEach(([playerNickname, cardId]) => {
@@ -67,9 +62,16 @@ export const compareCards = (
       const value = card.attributes[attribute];
       results[playerNickname] = { cardId, value };
       
-      if (value > maxValue) {
-        maxValue = value;
-        winner = playerNickname;
+      if (isLowerBetter) {
+        if (value < bestValue) {
+          bestValue = value;
+          winner = playerNickname;
+        }
+      } else {
+        if (value > bestValue) {
+          bestValue = value;
+          winner = playerNickname;
+        }
       }
     }
   });
@@ -88,7 +90,7 @@ export const getNextPlayer = (
   const activePlayers = playerNicknames.filter(p => players[p].status === 'active');
   
   if (activePlayers.length === 0) {
-    return currentPlayer; // Retorna o jogador atual se não houver jogadores ativos
+    return currentPlayer;
   }
 
   const currentIndex = activePlayers.indexOf(currentPlayer);
@@ -105,7 +107,7 @@ export const checkGameEnd = (players: { [key: string]: Player }): string | null 
     const activePlayers = Object.values(players).filter(p => p.status === 'active');
     
     if (activePlayers.length === 1) {
-      return activePlayers[0].nickname; // Retorna o vencedor
+      return activePlayers[0].nickname;
     }
     
     return null;
@@ -141,5 +143,5 @@ export const formatAttributeValue = (attribute: string, value: number): string =
  * Gera delay aleatório para simular "pensamento" de bots
  */
 export const getBotThinkingDelay = (): number => {
-  return Math.random() * 2000 + 1000; // 1-3 segundos
+  return Math.random() * 2000 + 1000;
 };

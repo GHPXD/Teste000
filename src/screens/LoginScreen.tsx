@@ -1,3 +1,5 @@
+// src/screens/LoginScreen.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -9,11 +11,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView, // CORREÇÃO: Importação adicionada
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { validateNickname, formatNickname } from '../utils/validation';
-import { saveUserNickname, getUserNickname } from '../services/storageService';
+import { saveUserData, getUserData } from '../services/storageService';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -21,36 +24,35 @@ interface Props {
   navigation: LoginScreenNavigationProp;
 }
 
+const AVATARS = ['😊', '😎', '😂', '🥳', '🤯', '👽', '🦊', '👻'];
+
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [nickname, setNickname] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingStorage, setIsCheckingStorage] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Verifica se já existe um nickname salvo ao carregar a tela
-  const checkExistingNickname = useCallback(async () => {
+  const checkExistingUser = useCallback(async () => {
     try {
-      const savedNickname = await getUserNickname();
-      if (savedNickname) {
-        // Se já existe nickname, navega diretamente para seleção de baralho
-        navigation.replace('DeckSelection');
-        return;
+      const savedUser = await getUserData();
+      if (savedUser?.nickname) {
+        setNickname(savedUser.nickname);
+        setSelectedAvatar(savedUser.avatar || null);
       }
     } catch (error) {
-      console.error('Erro ao verificar nickname existente:', error);
+      console.error('Erro ao verificar usuário existente:', error);
     } finally {
       setIsCheckingStorage(false);
     }
-  }, [navigation]);
+  }, []);
 
   useEffect(() => {
-    checkExistingNickname();
-  }, [checkExistingNickname]);
+    checkExistingUser();
+  }, [checkExistingUser]);
 
   const handleNicknameChange = (text: string) => {
     setNickname(text);
-    
-    // Validação em tempo real
     if (text.length > 0) {
       const validation = validateNickname(text);
       setValidationError(validation.isValid ? null : validation.error || null);
@@ -61,34 +63,33 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleLogin = async () => {
     const validation = validateNickname(nickname);
-    
     if (!validation.isValid) {
       setValidationError(validation.error || 'Nickname inválido');
       return;
     }
+    if (!selectedAvatar) {
+        Alert.alert('Atenção', 'Por favor, escolha um avatar.');
+        return;
+    }
 
     setIsLoading(true);
-    
     try {
       const formattedNickname = formatNickname(nickname);
-      await saveUserNickname(formattedNickname);
-      
-      // Navega para a próxima tela
+      await saveUserData({
+        nickname: formattedNickname,
+        avatar: selectedAvatar,
+        createdAt: new Date().toISOString(),
+      });
       navigation.replace('DeckSelection');
     } catch (error) {
-      Alert.alert(
-        'Erro',
-        'Não foi possível salvar seu nickname. Tente novamente.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Erro', 'Não foi possível salvar seus dados. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isNicknameValid = validateNickname(nickname).isValid;
+  const isFormValid = validateNickname(nickname).isValid && selectedAvatar !== null;
 
-  // Tela de loading enquanto verifica storage
   if (isCheckingStorage) {
     return (
       <View style={styles.loadingContainer}>
@@ -103,23 +104,37 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
-        {/* Header */}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>🎮 Trunfia</Text>
-          <Text style={styles.subtitle}>
-            Digite seu apelido para começar a jogar
-          </Text>
+          <Text style={styles.subtitle}>Crie seu perfil para começar a jogar</Text>
         </View>
 
-        {/* Input Section */}
+        <View style={styles.avatarSection}>
+            <Text style={styles.inputLabel}>Escolha seu avatar:</Text>
+            <View style={styles.avatarGrid}>
+                {AVATARS.map((avatar) => (
+                    <TouchableOpacity 
+                        key={avatar}
+                        style={[
+                            styles.avatarContainer,
+                            selectedAvatar === avatar && styles.avatarSelected
+                        ]}
+                        onPress={() => setSelectedAvatar(avatar)}
+                    >
+                        <Text style={styles.avatarText}>{avatar}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        </View>
+
         <View style={styles.inputSection}>
           <Text style={styles.inputLabel}>Seu apelido:</Text>
           <TextInput
             style={[
               styles.input,
               validationError ? styles.inputError : 
-              (nickname.length > 0 && isNicknameValid) ? styles.inputValid : null
+              (nickname.length > 0 && !validationError) ? styles.inputValid : null
             ]}
             value={nickname}
             onChangeText={handleNicknameChange}
@@ -131,42 +146,18 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             returnKeyType="done"
             onSubmitEditing={handleLogin}
           />
-          
-          {/* Contador de caracteres */}
-          <Text style={styles.characterCount}>
-            {nickname.length}/15 caracteres
-          </Text>
-          
-          {/* Mensagem de erro */}
-          {validationError && (
-            <Text style={styles.errorText}>{validationError}</Text>
-          )}
+          <Text style={styles.characterCount}>{nickname.length}/15 caracteres</Text>
+          {validationError && (<Text style={styles.errorText}>{validationError}</Text>)}
         </View>
 
-        {/* Button Section */}
         <TouchableOpacity
-          style={[
-            styles.button,
-            isNicknameValid ? styles.buttonEnabled : styles.buttonDisabled
-          ]}
+          style={[styles.button, isFormValid ? styles.buttonEnabled : styles.buttonDisabled]}
           onPress={handleLogin}
-          disabled={!isNicknameValid || isLoading}
+          disabled={!isFormValid || isLoading}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>Entrar</Text>
-          )}
+          {isLoading ? (<ActivityIndicator color="#FFF" />) : (<Text style={styles.buttonText}>Entrar</Text>)}
         </TouchableOpacity>
-
-        {/* Dicas */}
-        <View style={styles.hintsSection}>
-          <Text style={styles.hintsTitle}>Dicas:</Text>
-          <Text style={styles.hintText}>• Entre 3 e 15 caracteres</Text>
-          <Text style={styles.hintText}>• Apenas letras, números e _</Text>
-          <Text style={styles.hintText}>• Sem emojis ou espaços</Text>
-        </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
@@ -187,14 +178,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 32,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 32,
   },
   title: {
     fontSize: 32,
@@ -208,8 +199,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  avatarSection: {
+    marginBottom: 24,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  avatarContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#DDD',
+  },
+  avatarSelected: {
+    borderColor: '#007AFF',
+    backgroundColor: '#E3F2FD',
+    transform: [{ scale: 1.1 }],
+  },
+  avatarText: {
+    fontSize: 32,
+  },
   inputSection: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   inputLabel: {
     fontSize: 16,
@@ -261,24 +279,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#FFF',
-  },
-  hintsSection: {
-    backgroundColor: '#FFF',
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
-  },
-  hintsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  hintText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
   },
 });
 

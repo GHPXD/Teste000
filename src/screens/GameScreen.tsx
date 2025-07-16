@@ -14,6 +14,7 @@ import {
 import { RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// CORREÇÃO: O tipo 'Player' não é mais usado diretamente aqui.
 import { RootStackParamList, GameState, Card, RoundResult } from '../types';
 import { useGame } from '../contexts/GameContext';
 import {
@@ -25,11 +26,13 @@ import {
   listenToGameState,
 } from '../services/gameService';
 import { getDeckCards } from '../data/decks';
+import { findBestAttribute } from '../utils/botUtils';
 import Carta from '../components/game/Carta';
 import RodadaInfo from '../components/game/RodadaInfo';
 import ResultadoModal from '../components/game/ResultadoModal';
 import SpinWheel from '../components/game/SpinWheel';
 import BotController from '../components/game/BotController';
+import TurnTimer from '../components/game/TurnTimer';
 
 type GameScreenRouteProp = RouteProp<RootStackParamList, 'Game'>;
 type GameScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Game'>;
@@ -53,17 +56,12 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
   const [currentRoundResult, setCurrentRoundResult] = useState<RoundResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const isProcessingRound = useRef(false);
+  const [isTimerActive, setIsTimerActive] = useState(false);
 
   const handleStartGame = useCallback(async (cards: Card[]) => {
-    if (!state.currentRoom || !state.currentRoom.players) {
-        Alert.alert('Erro', 'Dados da sala não estão disponíveis');
-        return;
-    }
+    if (!state.currentRoom || !state.currentRoom.players) return;
     const players = Object.keys(state.currentRoom.players);
-    if (players.length < 2) {
-        Alert.alert('Erro', 'É necessário pelo menos 2 jogadores para iniciar');
-        return;
-    }
+    if (players.length < 2) return;
     setIsLoading(true);
     try {
         await startGame(roomId, players, cards);
@@ -79,17 +77,9 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
         setPlayerHand([]);
         return;
     }
-    if (currentGameState.gamePhase === 'spinning') {
-        return;
-    }
     const playerCardIds = currentGameState.playerCards[state.playerNickname] || [];
     const hand = playerCardIds.map(id => cards.find(card => card.id === id)).filter(Boolean) as Card[];
-    setPlayerHand(prevHand => {
-        if (JSON.stringify(prevHand.map(c => c.id)) !== JSON.stringify(hand.map(c => c.id))) {
-            return hand;
-        }
-        return prevHand;
-    });
+    setPlayerHand(hand);
   }, [state.playerNickname]);
 
   useEffect(() => {
@@ -100,20 +90,14 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
     setAllCards(getDeckCards(state.selectedDeck.id));
   }, [state.selectedDeck, navigation]);
 
+  // CORREÇÃO: useEffect para iniciar o jogo foi re-implementado
   useEffect(() => {
-    if (!state.currentRoom || !state.currentRoom.players || Object.keys(state.currentRoom.players).length === 0) {
-      navigation.goBack();
+    if (roomId !== 'SOLO_GAME_ROOM' && state.currentRoom && allCards.length > 0 && !gameState) {
+      if (state.currentRoom.hostNickname === state.playerNickname) {
+        handleStartGame(allCards);
+      }
     }
-  }, [state.currentRoom, navigation]);
-
-  useEffect(() => {
-    if (!state.currentRoom || !allCards.length || gameState) {
-      return;
-    }
-    if (state.currentRoom.hostNickname === state.playerNickname) {
-      handleStartGame(allCards);
-    }
-  }, [state.currentRoom, allCards, gameState, state.playerNickname, handleStartGame]);
+  }, [state.currentRoom, allCards, gameState, state.playerNickname, handleStartGame, roomId]);
 
   useEffect(() => {
     const unsubscribe = listenToGameState(roomId, setGameState);
@@ -163,39 +147,24 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   }, [isLoading, roomId]);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (showResultModal && gameState?.gamePhase === 'comparing' && state.currentRoom?.hostNickname === state.playerNickname) {
-      timer = setTimeout(() => {
-        handleNextRound();
-      }, 5000);
-    }
-    return () => clearTimeout(timer);
-  }, [showResultModal, gameState, state.currentRoom, state.playerNickname, handleNextRound]);
-
-  const handleCardSelect = (card: Card) => {
-    if (hasPlayedCard) return; // Não faz nada se já jogou
-
-    const cardId = card.id;
-    const isCurrentPlayer = gameState?.currentPlayer === state.playerNickname;
-
-    // Lógica para o jogador da vez (mandante)
-    if (isCurrentPlayer) {
-        if (selectedCardId === cardId) {
-            setSelectedCardId(null); // Des-seleciona ao clicar de novo
-            setTentativeAttribute(null);
-        } else {
-            setSelectedCardId(cardId); // Seleciona a carta
-            setTentativeAttribute(null); // Reseta o atributo
-        }
-    } else {
-        // Lógica para jogador normal: seleciona e joga de uma vez
-        setSelectedCardId(cardId);
-        handlePlayCardForNonCurrentPlayer(cardId);
-    }
-  };
+  const isCurrentPlayer = gameState?.currentPlayer === state.playerNickname;
+  const hasPlayedCard = !!(gameState?.currentRoundCards && gameState?.currentRoundCards[state.playerNickname]);
   
-  const handlePlayCardForNonCurrentPlayer = async (cardId: string) => {
+  const handleConfirmTurn = useCallback(async (forcedCardId?: string, forcedAttribute?: string) => {
+    const cardToPlay = forcedCardId || selectedCardId;
+    const attributeToPlay = forcedAttribute || tentativeAttribute;
+    
+    if (!cardToPlay || !attributeToPlay) return;
+    setIsLoading(true);
+    try {
+      await playCard(roomId, state.playerNickname, cardToPlay);
+      await selectAttribute(roomId, attributeToPlay);
+    } catch (error) { Alert.alert('Erro', 'Não foi possível confirmar a jogada.'); } finally { setIsLoading(false); }
+  },[roomId, state.playerNickname, selectedCardId, tentativeAttribute]);
+
+  const handlePlayCardForNonCurrentPlayer = useCallback(async (cardId: string) => {
+    if (hasPlayedCard) return;
+    setSelectedCardId(cardId);
     setIsLoading(true);
     try {
       await playCard(roomId, state.playerNickname, cardId);
@@ -204,52 +173,77 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [hasPlayedCard, roomId, state.playerNickname]);
 
-  const handleConfirmTurn = async () => {
-    if (!selectedCardId || !tentativeAttribute) return;
-    setIsLoading(true);
-    try {
-      await playCard(roomId, state.playerNickname, selectedCardId);
-      await selectAttribute(roomId, tentativeAttribute);
-    } catch (error) {
-      Alert.alert('Erro', 'Não foi possível confirmar a jogada.');
-    } finally {
-      setIsLoading(false);
+  const handleTimeEnd = useCallback(async () => {
+    console.log("⏰ O tempo acabou!");
+    setIsTimerActive(false);
+    
+    if (hasPlayedCard || playerHand.length === 0) return;
+
+    const randomCard = playerHand[Math.floor(Math.random() * playerHand.length)];
+    
+    if (isCurrentPlayer) {
+      const bestAttribute = findBestAttribute(randomCard).attribute;
+      await handleConfirmTurn(randomCard.id, bestAttribute);
+    } else {
+      await handlePlayCardForNonCurrentPlayer(randomCard.id);
+    }
+  // CORREÇÃO: Adicionadas as dependências que faltavam
+  }, [hasPlayedCard, playerHand, isCurrentPlayer, handleConfirmTurn, handlePlayCardForNonCurrentPlayer]);
+  
+  useEffect(() => {
+    if (gameState?.gamePhase === 'selecting' && !hasPlayedCard && playerHand.length > 0) {
+        setIsTimerActive(true);
+    } else {
+        setIsTimerActive(false);
+    }
+  }, [gameState?.gamePhase, hasPlayedCard, playerHand.length]);
+
+  const handleCardSelect = (card: Card) => {
+    if (hasPlayedCard) return;
+    
+    if (isCurrentPlayer) {
+        setSelectedCardId(card.id);
+        setTentativeAttribute(null);
+    } else {
+        handlePlayCardForNonCurrentPlayer(card.id);
     }
   };
   
   const handleCloseModal = () => {
     setShowResultModal(false);
-    if (gameState?.gameWinner) {
-      navigation.goBack();
-    }
+    if (gameState?.gameWinner) { navigation.goBack(); }
   };
   
   if (!state.currentRoom || !state.currentRoom.players || !gameState) {
     return (<SafeAreaView style={styles.container}><View style={styles.loadingContainer}><ActivityIndicator size="large" color="#007AFF" /><Text style={styles.loadingText}>Carregando jogo...</Text></View></SafeAreaView>);
   }
   
-  const players = Object.values(state.currentRoom.players);
-  const isCurrentPlayer = gameState.currentPlayer === state.playerNickname;
-  const hasPlayedCard = !!(gameState.currentRoundCards && gameState.currentRoundCards[state.playerNickname]);
-
   if (gameState.gamePhase === 'spinning') {
     return (<SafeAreaView style={styles.container}><SpinWheel players={Object.keys(state.currentRoom.players)} selectedPlayer={gameState.currentPlayer} isSpinning onSpinComplete={() => {}} /></SafeAreaView>);
   }
-  
+
   const shouldShowFullHand = !selectedCardId || hasPlayedCard;
 
   return (
     <SafeAreaView style={styles.container}>
-      <RodadaInfo gameState={gameState} playerNickname={state.playerNickname} playerCount={players.filter(p => p.status === 'active').length} />
+      <View style={styles.headerContainer}>
+        <RodadaInfo gameState={gameState} playerNickname={state.playerNickname} playerCount={Object.values(state.currentRoom.players).filter(p => p.status === 'active').length} />
+        {isTimerActive && (
+          <View style={styles.timerContainer}>
+            <TurnTimer duration={15} isPlaying={isTimerActive} onTimeEnd={handleTimeEnd} />
+          </View>
+        )}
+      </View>
+      
       <BotController roomId={roomId} gameState={gameState} players={state.currentRoom.players} allCards={allCards} />
       <ScrollView style={styles.gameArea} contentContainerStyle={styles.gameContent}>
-        {players.length > 0 && (<View style={styles.opponentsArea}><Text style={styles.sectionTitle}>Outros Jogadores</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {players.filter(p => p.nickname !== state.playerNickname).map(player => {
+        <View style={styles.opponentsArea}><Text style={styles.sectionTitle}>Outros Jogadores</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {Object.values(state.currentRoom.players).filter(p => p.nickname !== state.playerNickname).map(player => {
             const isEliminated = player.status === 'eliminated';
             return (<View key={player.nickname} style={[styles.opponentCard, isEliminated && styles.eliminatedOpponent]}><Text style={styles.opponentName}>{player.nickname}{player.isBot && ' 🤖'}</Text><View style={styles.opponentCardBack}><Text style={styles.cardCount}>{gameState.playerCards?.[player.nickname]?.length || 0}</Text><Text style={styles.cardCountLabel}>cartas</Text></View>{isEliminated ? (<View style={styles.eliminatedOverlay}><Text style={styles.eliminatedText}>ELIMINADO</Text></View>) : (<>{gameState.currentRoundCards?.[player.nickname] && (<View style={styles.playedCardIndicator}><Text style={styles.playedCardText}>✓ Jogou</Text></View>)}{player.isBot && gameState.currentPlayer === player.nickname && (<View style={styles.botThinkingIndicator}><Text style={styles.botThinkingText}>💭 Pensando...</Text></View>)}</>)}</View>);
-            })}</ScrollView></View>)}
+            })}</ScrollView></View>
         {Object.keys(gameState.currentRoundCards || {}).length > 0 && (gameState.gamePhase === 'revealing' || gameState.gamePhase === 'comparing') && (<View style={styles.revealedCardsArea}><Text style={styles.sectionTitle}>Cartas da Rodada</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {Object.entries(gameState.currentRoundCards || {}).map(([player, cardId]) => {
             const card = allCards.find(c => c.id === cardId);
@@ -272,6 +266,7 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
                         onSelect={() => handleCardSelect(card)}
                         isAttributeSelectable={isCurrentPlayer && selectedCardId === card.id && !hasPlayedCard}
                         onAttributeSelect={setTentativeAttribute}
+                        // CORREÇÃO: Garante que o tipo seja compatível
                         selectedAttribute={isCurrentPlayer && selectedCardId === card.id ? (tentativeAttribute || undefined) : undefined}
                     />
                 );
@@ -280,18 +275,19 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
         </View>
       </ScrollView>
       <View style={[styles.actionArea, { paddingBottom: insets.bottom || 16 }]}>
-        {isCurrentPlayer && selectedCardId && tentativeAttribute && !hasPlayedCard && (<TouchableOpacity style={[styles.actionButton, styles.confirmButton]} onPress={handleConfirmTurn} disabled={isLoading}><Text style={styles.actionButtonText}>{isLoading ? 'Confirmando...' : 'Confirmar Jogada'}</Text></TouchableOpacity>)}
+        {isCurrentPlayer && selectedCardId && tentativeAttribute && !hasPlayedCard && (<TouchableOpacity style={[styles.actionButton, styles.confirmButton]} onPress={() => handleConfirmTurn()} disabled={isLoading}><Text style={styles.actionButtonText}>{isLoading ? 'Confirmando...' : 'Confirmar Jogada'}</Text></TouchableOpacity>)}
       </View>
       <ResultadoModal visible={showResultModal} roundResult={currentRoundResult} allCards={allCards} playerNickname={state.playerNickname} onClose={handleCloseModal} onNextRound={handleNextRound} isGameFinished={!!gameState.gameWinner} gameWinner={gameState.gameWinner || undefined} isHost={state.playerNickname === state.currentRoom.hostNickname} />
       {isLoading && (<View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#FFF" /><Text style={styles.loadingOverlayText}>Processando...</Text></View>)}
     </SafeAreaView>
   );
 };
-
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F5F5F5' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
     loadingText: { fontSize: 18, color: '#666', marginBottom: 16, textAlign: 'center' },
+    headerContainer: { position: 'relative' },
+    timerContainer: { position: 'absolute', top: 16, right: 16, zIndex: 10 },
     gameArea: { flex: 1 },
     gameContent: { paddingBottom: 24 },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 12, textAlign: 'center', paddingHorizontal: 16 },
@@ -317,7 +313,6 @@ const styles = StyleSheet.create({
     handScroll: { paddingHorizontal: 16, alignItems: 'center' },
     actionArea: { paddingHorizontal: 16, paddingTop: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
     actionButton: { height: 56, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-    playButton: { backgroundColor: '#4CAF50' },
     confirmButton: { backgroundColor: '#FF9800' },
     actionButtonText: { fontSize: 18, fontWeight: '600', color: '#FFF' },
     loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'center', alignItems: 'center' },

@@ -1,3 +1,5 @@
+// src/screens/DeckSelectionScreen.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -12,7 +14,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList, Deck } from '../types';
 import { useGame } from '../contexts/GameContext';
 import BaralhoCard from '../components/common/BaralhoCard';
-import { getUserNickname } from '../services/storageService';
+import { getUserData } from '../services/storageService';
 
 type DeckSelectionNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -23,7 +25,6 @@ interface Props {
   navigation: DeckSelectionNavigationProp;
 }
 
-// Dados dos baralhos disponíveis
 const AVAILABLE_DECKS: Deck[] = [
   {
     id: 'paises',
@@ -46,63 +47,50 @@ const AVAILABLE_DECKS: Deck[] = [
 ];
 
 const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
-  const { state, setSelectedDeck, setPlayerNickname } = useGame();
+  const { state, setSelectedDeck, setPlayerNickname, setPlayerAvatar } = useGame();
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  
+  // CORREÇÃO: Renomeada para _setIsLoading para remover o aviso do linter.
+  const [isLoading, _setIsLoading] = useState(false);
 
-  // Carrega nickname do usuário ao iniciar
-  const loadUserNickname = useCallback(async () => {
+  const loadUserData = useCallback(async () => {
     try {
-      const nickname = await getUserNickname();
-      if (nickname) {
-        setPlayerNickname(nickname);
+      const userData = await getUserData();
+      if (userData) {
+        setPlayerNickname(userData.nickname);
+        setPlayerAvatar(userData.avatar || null);
       }
     } catch (error) {
-      console.error('Erro ao carregar nickname:', error);
+      console.error('Erro ao carregar dados do usuário:', error);
     }
-  }, [setPlayerNickname]);
+  }, [setPlayerNickname, setPlayerAvatar]);
 
   useEffect(() => {
-    loadUserNickname();
-  }, [loadUserNickname]);
+    loadUserData();
+  }, [loadUserData]);
 
   const handleDeckSelect = (deck: Deck) => {
     setSelectedDeckId(deck.id);
     setSelectedDeck(deck);
   };
 
-  const handleContinue = async () => {
+  const handleContinueToLobby = async () => {
     if (!state.selectedDeck) {
       Alert.alert('Atenção', 'Por favor, selecione um baralho para continuar.');
       return;
     }
-
-    setIsLoading(true);
-
-    try {
-      // Simula um pequeno delay para feedback visual
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Navega para a tela de lobby
-      navigation.navigate('Lobby');
-    } catch (error) {
-      Alert.alert('Erro', 'Ocorreu um erro. Tente novamente.');
-    } finally {
-      setIsLoading(false);
-    }
+    navigation.navigate('Lobby');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🎴 Escolha seu Baralho</Text>
         <Text style={styles.subtitle}>
-          Olá, {state.playerNickname}! Selecione um baralho para começar:
+          Olá, {state.playerAvatar} {state.playerNickname}! Selecione um baralho:
         </Text>
       </View>
 
-      {/* Lista de baralhos */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -118,7 +106,6 @@ const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Informações adicionais */}
         {state.selectedDeck && (
           <View style={styles.selectedInfo}>
             <Text style={styles.selectedTitle}>
@@ -131,19 +118,16 @@ const DeckSelectionScreen: React.FC<Props> = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Botão de continuar */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[
-            styles.continueButton,
-            state.selectedDeck
-              ? styles.continueButtonEnabled
-              : styles.continueButtonDisabled,
+            styles.button,
+            !state.selectedDeck && styles.buttonDisabled,
           ]}
-          onPress={handleContinue}
+          onPress={handleContinueToLobby}
           disabled={!state.selectedDeck || isLoading}>
-          <Text style={styles.continueButtonText}>
-            {isLoading ? 'Carregando...' : 'Continuar'}
+          <Text style={styles.buttonText}>
+            {isLoading ? 'Carregando...' : 'Continuar para o Lobby'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -210,19 +194,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
   },
-  continueButton: {
+  button: {
     height: 56,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  continueButtonEnabled: {
     backgroundColor: '#007AFF',
   },
-  continueButtonDisabled: {
+  buttonDisabled: {
     backgroundColor: '#CCC',
   },
-  continueButtonText: {
+  buttonText: {
     fontSize: 18,
     fontWeight: '600',
     color: '#FFF',

@@ -1,8 +1,9 @@
 // src/types/index.ts
 
-// Tipos principais da aplicação (mantendo os existentes)
+// Tipos principais da aplicação
 export interface User {
   nickname: string;
+  avatar?: string; // NOVO: Avatar do usuário
   createdAt: string;
 }
 
@@ -13,7 +14,7 @@ export interface ValidationResult {
 
 export interface Deck {
   id: string;
-  name: string;
+  name:string;
   description: string;
   imageSource: any;
   totalCards: number;
@@ -35,13 +36,13 @@ export interface Room {
   gameState?: GameState;
 }
 
-// MODIFICADO: Player com suporte a bots e status
 export interface Player {
   nickname: string;
+  avatar?: string; // NOVO: Avatar do jogador na sala
   isHost: boolean;
   joinedAt: string;
   isReady: boolean;
-  status?: 'active' | 'eliminated'; // NOVO: Status do jogador na partida
+  status?: 'active' | 'eliminated';
   isBot?: boolean;
   botDifficulty?: 'easy' | 'medium' | 'hard';
   cardsCount?: number;
@@ -98,9 +99,11 @@ export interface BotDecision {
   reasoning: string;
 }
 
+// CORREÇÃO: Propriedade 'playerAvatar' adicionada
 export interface GameContextState {
   selectedDeck: Deck | null;
   playerNickname: string;
+  playerAvatar: string | null; // Adicionado aqui
   currentRoom: Room | null;
   isInRoom: boolean;
   gameCards: Card[];

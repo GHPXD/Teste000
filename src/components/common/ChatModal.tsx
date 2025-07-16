@@ -1,3 +1,5 @@
+// src/components/common/ChatModal.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -36,7 +38,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
     const unsubscribe = listenToChatMessages(roomId, (newMessages) => {
       setMessages(newMessages);
-      // Auto-scroll para a última mensagem
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -78,7 +79,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>💬 Chat da Sala</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -86,7 +86,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Messages */}
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
@@ -105,18 +104,27 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 key={message.id}
                 style={[
                   styles.messageContainer,
-                  message.nickname === playerNickname && styles.myMessage,
+                  message.nickname === playerNickname ? styles.myMessage : styles.otherMessage,
                 ]}
               >
                 <View style={styles.messageHeader}>
-                  <Text style={styles.messageNickname}>
+                  <Text style={[
+                      styles.messageNickname,
+                      message.nickname === playerNickname && styles.myNickname
+                    ]}>
                     {message.nickname}
                   </Text>
-                  <Text style={styles.messageTime}>
+                  <Text style={[
+                      styles.messageTime,
+                      message.nickname === playerNickname && styles.myTime
+                    ]}>
                     {formatTime(message.timestamp)}
                   </Text>
                 </View>
-                <Text style={styles.messageText}>
+                <Text style={[
+                    styles.messageText,
+                    message.nickname === playerNickname && styles.myMessageText
+                ]}>
                   {message.message}
                 </Text>
               </View>
@@ -124,7 +132,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
           )}
         </ScrollView>
 
-        {/* Input */}
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -165,6 +172,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+    paddingTop: 20,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
@@ -200,11 +208,13 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   messageContainer: {
-    backgroundColor: '#FFF',
     padding: 12,
     borderRadius: 12,
     marginBottom: 8,
     maxWidth: '80%',
+  },
+  otherMessage: {
+    backgroundColor: '#FFF',
     alignSelf: 'flex-start',
   },
   myMessage: {
@@ -222,14 +232,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#666',
   },
+  myNickname: {
+      color: '#E3F2FD'
+  },
   messageTime: {
     fontSize: 10,
     color: '#999',
+  },
+  myTime: {
+    color: '#E3F2FD'
   },
   messageText: {
     fontSize: 14,
     color: '#333',
     lineHeight: 20,
+  },
+  myMessageText: {
+      color: '#FFF',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -248,12 +267,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     maxHeight: 100,
     marginRight: 8,
+    color: '#333', // CORREÇÃO ADICIONADA AQUI
   },
   sendButton: {
     backgroundColor: '#007AFF',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -262,8 +282,9 @@ const styles = StyleSheet.create({
   },
   sendButtonText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+    lineHeight: 20,
   },
 });
 
