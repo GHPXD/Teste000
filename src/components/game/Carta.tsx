@@ -18,21 +18,23 @@ interface CartaProps {
   isRevealed: boolean;
   isSelected: boolean;
   isSelectable: boolean;
+  width?: number; // Prop para largura dinâmica
+  height?: number; // Prop para altura dinâmica
   selectedAttribute?: string;
   onSelect?: () => void;
   isAttributeSelectable?: boolean;
   onAttributeSelect?: (attribute: string) => void;
 }
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.45;
-const CARD_HEIGHT = CARD_WIDTH * 1.5;
+const FALLBACK_WIDTH = Dimensions.get('window').width * 0.25;
 
 const Carta: React.FC<CartaProps> = ({
   card,
   isRevealed,
   isSelected,
   isSelectable,
+  width = FALLBACK_WIDTH,
+  height = width * 1.5,
   selectedAttribute,
   onSelect,
   isAttributeSelectable = false,
@@ -44,10 +46,9 @@ const Carta: React.FC<CartaProps> = ({
     const toValue = isRevealed ? 180 : 0;
     Animated.timing(animatedValue, {
       toValue,
-      duration: 400,
+      duration: 300,
       useNativeDriver: true,
     }).start();
-    // CORREÇÃO: Adicionada a dependência 'animatedValue' para satisfazer o linter.
   }, [isRevealed, animatedValue]);
 
   const handlePress = () => {
@@ -57,57 +58,43 @@ const Carta: React.FC<CartaProps> = ({
   };
 
   const backAnimatedStyle = {
-    transform: [
-      {
-        rotateY: animatedValue.interpolate({
-          inputRange: [0, 180],
-          outputRange: ['0deg', '180deg'],
-        }),
-      },
-    ],
+    transform: [{ rotateY: animatedValue.interpolate({ inputRange: [0, 180], outputRange: ['0deg', '180deg'] }) }],
   };
   
   const frontAnimatedStyle = {
-    transform: [
-      {
-        rotateY: animatedValue.interpolate({
-          inputRange: [0, 180],
-          outputRange: ['180deg', '360deg'],
-        }),
-      },
-    ],
+    transform: [{ rotateY: animatedValue.interpolate({ inputRange: [0, 180], outputRange: ['180deg', '360deg'] }) }],
+  };
+
+  // Estilos dinâmicos baseados no tamanho da carta
+  const dynamicStyles = {
+    container: { width, height },
+    cardNameText: { fontSize: width * 0.12 },
+    attributeName: { fontSize: width * 0.09 },
+    attributeValue: { fontSize: width * 0.09 },
+    attributeRow: { paddingVertical: height * 0.025 },
   };
 
   return (
     <TouchableOpacity
-      style={[
-        styles.container,
-        isSelected && styles.selectedContainer,
-      ]}
+      style={[styles.container, dynamicStyles.container, isSelected && styles.selectedContainer]}
       onPress={handlePress}
       disabled={!isSelectable && !isAttributeSelectable}
       activeOpacity={0.9}
     >
       <Animated.View style={[styles.cardBase, styles.cardBack, backAnimatedStyle]}>
-        <View style={styles.backPattern}>
-          {/* Você pode adicionar sua imagem de logo aqui se tiver uma */}
-          {/* <Image source={require('../assets/images/logo-verso.png')} style={styles.logoImage} /> */}
-          <Text style={styles.backText}>🎴</Text>
-          <Text style={styles.backTitle}>TRUNFIA</Text>
-        </View>
+        <Image source={require('../../assets/images/logo-verso.png')} style={styles.logoImage} />
       </Animated.View>
 
       <Animated.View style={[styles.cardBase, styles.cardFront, frontAnimatedStyle]}>
         <View style={styles.imageContainer}>
           {card.image ? (
-            <Image 
-              source={{ uri: card.image }} 
-              style={styles.cardImage}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: card.image }} style={styles.cardImage} resizeMode="cover" />
           ) : (
             <Text style={styles.imagePlaceholder}>{card.name}</Text>
           )}
+          <View style={styles.cardNameContainer}>
+            <Text style={[styles.cardNameText, dynamicStyles.cardNameText]}>{card.name}</Text>
+          </View>
         </View>
 
         <View style={styles.attributesWrapper}>
@@ -115,57 +102,45 @@ const Carta: React.FC<CartaProps> = ({
               {Object.entries(card.attributes).map(([key, value]) => (
               <TouchableOpacity
                   key={key}
-                  style={[
-                    styles.attributeRow,
-                    isAttributeSelectable && styles.attributeSelectable,
-                    selectedAttribute === key && styles.selectedAttribute,
-                  ]}
+                  style={[ styles.attributeRow, dynamicStyles.attributeRow, isAttributeSelectable && styles.attributeSelectable, selectedAttribute === key && styles.selectedAttribute ]}
                   onPress={() => onAttributeSelect?.(key)}
                   disabled={!isAttributeSelectable}
               >
-                  <Text style={styles.attributeName}>{key}:</Text>
-                  <Text style={styles.attributeValue}>{formatAttributeValue(key, value)}</Text>
+                  <Text style={[styles.attributeName, dynamicStyles.attributeName]}>{key}:</Text>
+                  <Text style={[styles.attributeValue, dynamicStyles.attributeValue]}>{formatAttributeValue(key, value)}</Text>
               </TouchableOpacity>
               ))}
           </View>
         </View>
       </Animated.View>
-
-      {isSelected && (
-        <View style={styles.selectionIndicator}>
-          <Text style={styles.selectionIcon}>✓</Text>
-        </View>
-      )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    margin: 8,
+    marginHorizontal: 4,
   },
   selectedContainer: {
-    transform: [{ scale: 1.05 }],
-    shadowColor: '#007AFF',
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 10,
+    transform: [{ scale: 1.08 }, { translateY: -15 }],
+    shadowColor: '#f1c40f',
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 12,
   },
   cardBase: {
     width: '100%',
     height: '100%',
     position: 'absolute',
-    borderRadius: 12,
+    borderRadius: 10,
     backfaceVisibility: 'hidden',
-    borderWidth: 1,
-    borderColor: '#CCC',
-    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#fff',
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
   cardBack: {
     backgroundColor: '#2c3e50',
@@ -173,105 +148,83 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardFront: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ecf0f1',
     overflow: 'hidden',
   },
-  backPattern: {
-    alignItems: 'center',
-  },
-  backText: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  backTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFF',
-    letterSpacing: 3,
-  },
   logoImage: {
-    width: 60,
-    height: 60,
-    marginBottom: 10,
+    width: '70%',
+    height: '70%',
+    resizeMode: 'contain',
   },
   imageContainer: {
-    height: '35%',
+    height: '40%',
     width: '100%',
-    backgroundColor: '#e9ecef',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#bdc3c7',
+    position: 'relative',
   },
   cardImage: {
     width: '100%',
     height: '100%',
   },
+  cardNameContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 4,
+  },
+  cardNameText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
   imagePlaceholder: {
     fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
-    color: '#6c757d',
+    color: '#2c3e50',
     padding: 5,
   },
   attributesWrapper: {
-    height: '65%',
+    height: '60%',
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 5,
+    padding: 8,
   },
   attributesContainer: {
-    width: '90%',
-    height: '100%',
+    width: '100%',
+    flex: 1,
     justifyContent: 'space-around',
   },
   attributeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    backgroundColor: '#f8f9fa',
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
   attributeSelectable: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#fff',
+    borderColor: '#ccc',
   },
   selectedAttribute: {
-    backgroundColor: '#d1ecf1',
-    borderColor: '#007bff',
+    backgroundColor: '#f1c40f',
+    borderColor: '#f39c12',
     transform: [{ scale: 1.05 }],
-    elevation: 2,
+    elevation: 3,
   },
   attributeName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#495057',
+    fontWeight: '600',
+    color: '#34495e',
   },
   attributeValue: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#212529',
-  },
-  selectionIndicator: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#28a745',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-    borderWidth: 1,
-    borderColor: '#FFF',
-  },
-  selectionIcon: {
-    color: '#FFF',
-    fontSize: 14,
     fontWeight: 'bold',
+    color: '#2c3e50',
   },
 });
 
