@@ -187,14 +187,15 @@ const GameScreen: React.FC<Props> = ({ route, navigation }) => {
   const hasPlayedCard = !!(gameState?.currentRoundCards && gameState?.currentRoundCards[state.playerNickname]);
   
   const handleConfirmTurn = useCallback(async () => {
-    if (!selectedCardId || !tentativeAttribute || !gameState) return;
+    if (!selectedCardId || !tentativeAttribute) return;
     setIsLoading(true);
     try {
       await playCard(roomId, state.playerNickname, selectedCardId);
-      await selectAttributeAndProcess(roomId, tentativeAttribute, gameState, allCards);
+      // CORREÇÃO: Passa allCards para a função
+      await selectAttributeAndProcess(roomId, tentativeAttribute, allCards);
     } catch (error) { Alert.alert('Erro', 'Não foi possível confirmar a jogada.'); } 
     finally { setIsLoading(false); }
-  },[roomId, state.playerNickname, selectedCardId, tentativeAttribute, gameState, allCards]);
+  },[roomId, state.playerNickname, selectedCardId, tentativeAttribute, allCards]);
   
   const handlePlayCardForNonCurrentPlayer = useCallback(async (cardId: string) => {
     if (hasPlayedCard) return;

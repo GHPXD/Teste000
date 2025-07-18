@@ -22,7 +22,6 @@ export const startGame = async (
     const playerCards = distributeCards(cards, players);
     const firstPlayer = selectRandomPlayer(players);
 
-    // Garante que todos os jogadores comecem como ativos
     const roomRef = ref(database, `${ROOMS_PATH}/${roomId}/players`);
     const playersSnapshot = await get(roomRef);
     const playersData = playersSnapshot.val() as { [key: string]: Player };
@@ -46,21 +45,19 @@ export const startGame = async (
 
     const updates = {
       [`${ROOMS_PATH}/${roomId}/status`]: 'playing',
-      [`${ROOMS_PATH}/${roomId}/players`]: playersData, // Salva o status 'active'
+      [`${ROOMS_PATH}/${roomId}/players`]: playersData,
       [`${GAMES_PATH}/${roomId}`]: gameState,
     };
 
     await update(ref(database), updates);
-    console.log('✅ Jogo salvo no Firebase com sucesso');
 
     setTimeout(async () => {
       try {
         await update(ref(database), {
           [`${GAMES_PATH}/${roomId}/gamePhase`]: 'selecting',
         });
-        console.log('✅ Transição para selecting concluída');
       } catch (error) {
-        console.error('❌ Erro na transição automática para "selecting":', error);
+        console.error('❌ Erro na transição para "selecting":', error);
       }
     }, 4000);
 
@@ -93,16 +90,13 @@ export const playCard = async (
     if (!gameSnapshot.exists()) return;
     const gameState: GameState = gameSnapshot.val();
 
-    const updates = {
+    await update(ref(database), {
       [`${GAMES_PATH}/${roomId}/currentRoundCards/${playerNickname}`]: cardId,
-    };
-    await update(ref(database), updates);
+    });
 
     const updatedCards = { ...gameState.currentRoundCards, [playerNickname]: cardId };
     
     if (Object.keys(updatedCards).length === totalActivePlayers) {
-      console.log('✅ Todos os jogadores ativos jogaram. Iniciando animação.');
-      
       await update(ref(database), {
         [`${GAMES_PATH}/${roomId}/gamePhase`]: 'animating-play',
       });
@@ -114,12 +108,11 @@ export const playCard = async (
 };
 
 /**
- * Seleciona atributo para comparação e inicia o processamento.
+ * Seleciona atributo e dispara o processo de comparação da rodada.
  */
 export const selectAttributeAndProcess = async (
   roomId: string,
   attribute: string,
-  gameState: GameState,
   allCards: Card[],
 ): Promise<void> => {
     try {
@@ -127,12 +120,9 @@ export const selectAttributeAndProcess = async (
             [`${GAMES_PATH}/${roomId}/selectedAttribute`]: attribute,
         });
 
-        const updatedGameState = { ...gameState, selectedAttribute: attribute };
-
-        // Aguarda um momento para os jogadores verem o atributo selecionado
         setTimeout(() => {
-            processRoundResult(roomId, updatedGameState, allCards);
-        }, 1500); // 1.5s de delay
+            processRoundResult(roomId, allCards);
+        }, 1500); // Delay para jogadores verem o atributo
 
     } catch (error) {
         console.error('Erro ao selecionar atributo:', error);
@@ -140,36 +130,35 @@ export const selectAttributeAndProcess = async (
     }
 };
 
-
 /**
- * Processa resultado da rodada e atualiza o estado para a próxima animação.
+ * Processa o resultado, determina o vencedor e transiciona para a fase de comparação na mesa.
  */
 export const processRoundResult = async (
   roomId: string,
-  gameState: GameState,
   allCards: Card[]
 ): Promise<void> => {
   try {
-    if (!gameState.selectedAttribute) {
-      throw new Error('Atributo não selecionado');
-    }
+    const gameRef = ref(database, `${GAMES_PATH}/${roomId}`);
+    const gameSnapshot = await get(gameRef);
+    if (!gameSnapshot.exists()) return;
+    const gameState: GameState = gameSnapshot.val();
 
+    if (!gameState.selectedAttribute) throw new Error('Atributo não selecionado');
+    
     const { winner } = compareCards(
       gameState.currentRoundCards,
       gameState.selectedAttribute,
       allCards
     );
 
-    // Mudar a fase para mostrar as cartas na mesa e o vencedor
     await update(ref(database), {
         [`${GAMES_PATH}/${roomId}/roundWinner`]: winner,
         [`${GAMES_PATH}/${roomId}/gamePhase`]: 'comparing-on-table',
     });
     
-    // Após um delay para visualização, coletar as cartas e preparar a próxima rodada
     setTimeout(() => {
-        collectWinningsAndPrepareNextRound(roomId, gameState, allCards);
-    }, 3000); // Delay de 3 segundos para os jogadores verem o resultado
+        collectWinningsAndPrepareNextRound(roomId, allCards);
+    }, 3000); // Delay para visualizar as cartas e o vencedor
 
   } catch (error) {
     console.error('Erro ao processar resultado:', error);
@@ -177,28 +166,34 @@ export const processRoundResult = async (
   }
 };
 
-
 /**
- * Atualiza os decks, verifica fim de jogo e inicia a animação de coleta.
+ * Coleta as cartas para o vencedor, atualiza os baralhos e prepara a próxima rodada.
  */
 export const collectWinningsAndPrepareNextRound = async (
     roomId: string,
-    gameState: GameState,
     allCards: Card[]
 ) => {
+    const gameRef = ref(database, `${GAMES_PATH}/${roomId}`);
+    const gameSnapshot = await get(gameRef);
+    if (!gameSnapshot.exists()) return;
+    const gameState: GameState = gameSnapshot.val();
+    
     const roomPlayersRef = ref(database, `${ROOMS_PATH}/${roomId}/players`);
     const playersSnapshot = await get(roomPlayersRef);
     const players: { [key: string]: Player } = playersSnapshot.val();
 
-    const { winner, results } = compareCards(
+    const winner = gameState.roundWinner;
+    if (!winner || !gameState.selectedAttribute) return;
+
+    const { results } = compareCards(
         gameState.currentRoundCards,
-        gameState.selectedAttribute!,
+        gameState.selectedAttribute,
         allCards
     );
 
     const roundResult: RoundResult = {
         roundNumber: gameState.currentRound,
-        selectedAttribute: gameState.selectedAttribute!,
+        selectedAttribute: gameState.selectedAttribute,
         playerCards: results,
         winner,
         timestamp: new Date().toISOString(),
@@ -225,39 +220,33 @@ export const collectWinningsAndPrepareNextRound = async (
 
     const gameWinner = checkGameEnd(players);
 
-    const updates = {
+    await update(ref(database), {
         [`${GAMES_PATH}/${roomId}/playerCards`]: updatedPlayerCards,
         [`${GAMES_PATH}/${roomId}/roundHistory`]: [...(gameState.roundHistory || []), roundResult],
-        [`${GAMES_PATH}/${roomId}/gamePhase`]: 'animating-win', // Inicia animação de coleta
+        [`${GAMES_PATH}/${roomId}/gamePhase`]: 'animating-win',
         [`${ROOMS_PATH}/${roomId}/players`]: players,
         [`${GAMES_PATH}/${roomId}/gameWinner`]: gameWinner,
-    };
+    });
 
-    await update(ref(database), updates);
-
-    // Após a animação de coleta, inicia a próxima rodada ou finaliza o jogo
-    setTimeout(() => {
+    setTimeout(async () => {
         if (gameWinner) {
-            update(ref(database), { [`${GAMES_PATH}/${roomId}/gamePhase`]: 'finished' });
+            await update(ref(database), { [`${GAMES_PATH}/${roomId}/gamePhase`]: 'finished' });
         } else {
-            startNextRound(roomId);
+            await startNextRound(roomId);
         }
-    }, 2000); // Duração da animação de "puxar" as cartas
+    }, 2000); // Duração da animação das cartas indo para o vencedor
 };
 
 /**
- * Inicia próxima rodada (chamado pelo host).
+ * Inicia a próxima rodada.
  */
 export const startNextRound = async (roomId: string): Promise<void> => {
   try {
     const gameRef = ref(database, `${GAMES_PATH}/${roomId}`);
     const snapshot = await get(gameRef);
     if (!snapshot.exists()) return;
-
     const gameState: GameState = snapshot.val();
 
-    // O currentPlayer já foi definido como o vencedor da rodada anterior em processRoundResult.
-    // Apenas resetamos o estado da rodada.
     const updates = {
       [`${GAMES_PATH}/${roomId}/currentRound`]: gameState.currentRound + 1,
       [`${GAMES_PATH}/${roomId}/currentPlayer`]: gameState.roundWinner,
@@ -284,8 +273,8 @@ export const listenToGameState = (
   const gameRef = ref(database, `${GAMES_PATH}/${roomId}`);
   
   const unsubscribe = onValue(gameRef, (snapshot) => {
-    const gameState = snapshot.exists() ? snapshot.val() : null;
-    callback(gameState);
+    const room = snapshot.exists() ? snapshot.val() : null;
+    callback(room);
   });
 
   return () => off(gameRef, 'value', unsubscribe);
