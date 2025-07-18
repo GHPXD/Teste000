@@ -3,7 +3,7 @@
 import { ref, update, get, onValue, off } from 'firebase/database';
 import { database } from '../config/firebase';
 import { GameState, Card, RoundResult, Room, Player } from '../types';
-import { distributeCards, selectRandomPlayer, compareCards, checkGameEnd, getNextPlayer, shuffleArray } from '../utils/gameUtils';
+import { distributeCards, selectRandomPlayer, compareCards, checkGameEnd, shuffleArray } from '../utils/gameUtils';
 
 const GAMES_PATH = 'games';
 const ROOMS_PATH = 'rooms';
@@ -101,10 +101,10 @@ export const playCard = async (
     const updatedCards = { ...gameState.currentRoundCards, [playerNickname]: cardId };
     
     if (Object.keys(updatedCards).length === totalActivePlayers) {
-      console.log('✅ Todos os jogadores ativos jogaram. Avançando para fase de revelação.');
+      console.log('✅ Todos os jogadores ativos jogaram. Iniciando animação.');
       
       await update(ref(database), {
-        [`${GAMES_PATH}/${roomId}/gamePhase`]: 'revealing',
+        [`${GAMES_PATH}/${roomId}/gamePhase`]: 'animating-play',
       });
     }
   } catch (error) {
@@ -114,25 +114,35 @@ export const playCard = async (
 };
 
 /**
- * Seleciona atributo para comparação (apenas o jogador da vez).
+ * Seleciona atributo para comparação e inicia o processamento.
  */
-export const selectAttribute = async (
+export const selectAttributeAndProcess = async (
   roomId: string,
-  attribute: string
+  attribute: string,
+  gameState: GameState,
+  allCards: Card[],
 ): Promise<void> => {
-  try {
-    const updates = {
-      [`${GAMES_PATH}/${roomId}/selectedAttribute`]: attribute,
-    };
-    await update(ref(database), updates);
-  } catch (error) {
-    console.error('Erro ao selecionar atributo:', error);
-    throw new Error('Não foi possível selecionar o atributo');
-  }
+    try {
+        await update(ref(database), {
+            [`${GAMES_PATH}/${roomId}/selectedAttribute`]: attribute,
+        });
+
+        const updatedGameState = { ...gameState, selectedAttribute: attribute };
+
+        // Aguarda um momento para os jogadores verem o atributo selecionado
+        setTimeout(() => {
+            processRoundResult(roomId, updatedGameState, allCards);
+        }, 1500); // 1.5s de delay
+
+    } catch (error) {
+        console.error('Erro ao selecionar atributo:', error);
+        throw new Error('Não foi possível selecionar o atributo');
+    }
 };
 
+
 /**
- * Processa resultado da rodada.
+ * Processa resultado da rodada e atualiza o estado para a próxima animação.
  */
 export const processRoundResult = async (
   roomId: string,
@@ -144,68 +154,96 @@ export const processRoundResult = async (
       throw new Error('Atributo não selecionado');
     }
 
-    const roomPlayersRef = ref(database, `${ROOMS_PATH}/${roomId}/players`);
-    const playersSnapshot = await get(roomPlayersRef);
-    const players: { [key: string]: Player } = playersSnapshot.val();
-
-    const { winner, results } = compareCards(
+    const { winner } = compareCards(
       gameState.currentRoundCards,
       gameState.selectedAttribute,
       allCards
     );
 
-    const roundResult: RoundResult = {
-      roundNumber: gameState.currentRound,
-      selectedAttribute: gameState.selectedAttribute,
-      playerCards: results,
-      winner,
-      timestamp: new Date().toISOString(),
-    };
-
-    const updatedPlayerCards = { ...gameState.playerCards };
-    const playedCards = Object.values(gameState.currentRoundCards);
-
-    Object.keys(gameState.currentRoundCards).forEach(player => {
-      const cardId = gameState.currentRoundCards[player];
-      updatedPlayerCards[player] = updatedPlayerCards[player].filter(id => id !== cardId);
+    // Mudar a fase para mostrar as cartas na mesa e o vencedor
+    await update(ref(database), {
+        [`${GAMES_PATH}/${roomId}/roundWinner`]: winner,
+        [`${GAMES_PATH}/${roomId}/gamePhase`]: 'comparing-on-table',
     });
-
-    // Embaralha o deck do vencedor ao adicionar as novas cartas.
-    const newWinnerDeck = shuffleArray([
-      ...(updatedPlayerCards[winner] || []),
-      ...playedCards
-    ]);
-    updatedPlayerCards[winner] = newWinnerDeck;
     
-    Object.keys(players).forEach(p => {
-        if (updatedPlayerCards[p]?.length === 0 && players[p].status === 'active') {
-            players[p].status = 'eliminated';
-            console.log(`Player ${p} foi eliminado.`);
-        }
-    });
+    // Após um delay para visualização, coletar as cartas e preparar a próxima rodada
+    setTimeout(() => {
+        collectWinningsAndPrepareNextRound(roomId, gameState, allCards);
+    }, 3000); // Delay de 3 segundos para os jogadores verem o resultado
 
-    const gameWinner = checkGameEnd(players);
-
-    const updates: any = {
-      [`${GAMES_PATH}/${roomId}/roundWinner`]: winner,
-      [`${GAMES_PATH}/${roomId}/gameWinner`]: gameWinner,
-      [`${GAMES_PATH}/${roomId}/playerCards`]: updatedPlayerCards,
-      [`${GAMES_PATH}/${roomId}/roundHistory`]: [...(gameState.roundHistory || []), roundResult],
-      [`${GAMES_PATH}/${roomId}/gamePhase`]: gameWinner ? 'finished' : 'comparing',
-      [`${ROOMS_PATH}/${roomId}/players`]: players,
-    };
-    
-    if (!gameWinner) {
-      updates[`${GAMES_PATH}/${roomId}/currentPlayer`] = winner;
-    }
-
-    await update(ref(database), updates);
   } catch (error) {
     console.error('Erro ao processar resultado:', error);
     throw new Error('Não foi possível processar o resultado');
   }
 };
 
+
+/**
+ * Atualiza os decks, verifica fim de jogo e inicia a animação de coleta.
+ */
+export const collectWinningsAndPrepareNextRound = async (
+    roomId: string,
+    gameState: GameState,
+    allCards: Card[]
+) => {
+    const roomPlayersRef = ref(database, `${ROOMS_PATH}/${roomId}/players`);
+    const playersSnapshot = await get(roomPlayersRef);
+    const players: { [key: string]: Player } = playersSnapshot.val();
+
+    const { winner, results } = compareCards(
+        gameState.currentRoundCards,
+        gameState.selectedAttribute!,
+        allCards
+    );
+
+    const roundResult: RoundResult = {
+        roundNumber: gameState.currentRound,
+        selectedAttribute: gameState.selectedAttribute!,
+        playerCards: results,
+        winner,
+        timestamp: new Date().toISOString(),
+    };
+
+    const updatedPlayerCards = { ...gameState.playerCards };
+    const playedCards = Object.values(gameState.currentRoundCards);
+
+    Object.keys(gameState.currentRoundCards).forEach(player => {
+        const cardId = gameState.currentRoundCards[player];
+        updatedPlayerCards[player] = updatedPlayerCards[player].filter(id => id !== cardId);
+    });
+
+    updatedPlayerCards[winner] = shuffleArray([
+        ...(updatedPlayerCards[winner] || []),
+        ...playedCards
+    ]);
+
+    Object.keys(players).forEach(p => {
+        if (updatedPlayerCards[p]?.length === 0 && players[p].status === 'active') {
+            players[p].status = 'eliminated';
+        }
+    });
+
+    const gameWinner = checkGameEnd(players);
+
+    const updates = {
+        [`${GAMES_PATH}/${roomId}/playerCards`]: updatedPlayerCards,
+        [`${GAMES_PATH}/${roomId}/roundHistory`]: [...(gameState.roundHistory || []), roundResult],
+        [`${GAMES_PATH}/${roomId}/gamePhase`]: 'animating-win', // Inicia animação de coleta
+        [`${ROOMS_PATH}/${roomId}/players`]: players,
+        [`${GAMES_PATH}/${roomId}/gameWinner`]: gameWinner,
+    };
+
+    await update(ref(database), updates);
+
+    // Após a animação de coleta, inicia a próxima rodada ou finaliza o jogo
+    setTimeout(() => {
+        if (gameWinner) {
+            update(ref(database), { [`${GAMES_PATH}/${roomId}/gamePhase`]: 'finished' });
+        } else {
+            startNextRound(roomId);
+        }
+    }, 2000); // Duração da animação de "puxar" as cartas
+};
 
 /**
  * Inicia próxima rodada (chamado pelo host).
@@ -222,6 +260,7 @@ export const startNextRound = async (roomId: string): Promise<void> => {
     // Apenas resetamos o estado da rodada.
     const updates = {
       [`${GAMES_PATH}/${roomId}/currentRound`]: gameState.currentRound + 1,
+      [`${GAMES_PATH}/${roomId}/currentPlayer`]: gameState.roundWinner,
       [`${GAMES_PATH}/${roomId}/gamePhase`]: 'selecting',
       [`${GAMES_PATH}/${roomId}/currentRoundCards`]: {},
       [`${GAMES_PATH}/${roomId}/selectedAttribute`]: null,

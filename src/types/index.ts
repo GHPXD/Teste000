@@ -66,7 +66,7 @@ export interface Card {
 export interface GameState {
   currentRound: number;
   currentPlayer: string;
-  gamePhase: 'spinning' | 'selecting' | 'revealing' | 'comparing' | 'finished';
+  gamePhase: 'spinning' | 'selecting' | 'animating-play' | 'comparing-on-table' | 'animating-win' | 'finished';
   playerCards: { [playerNickname: string]: string[] };
   currentRoundCards: { [playerNickname: string]: string };
   selectedAttribute: string | null;
